@@ -30,3 +30,8 @@ fastlane/test_output/
 # General
 *.log
 
+# Environment Variables and Secrets
+Config-Secrets.plist
+*.secrets.plist
+.env
+.env.local

@@ -7,6 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7D95821D2EA32EAF008AFC8E /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D95821C2EA32EAF008AFC8E /* SignUpView.swift */; };
+		7D95825B2EA45859008AFC8E /* MultipleChoiceQuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9582582EA45859008AFC8E /* MultipleChoiceQuestionView.swift */; };
+		7D95825C2EA45859008AFC8E /* Question.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9582592EA45859008AFC8E /* Question.swift */; };
+		7D95825D2EA45859008AFC8E /* QuestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D95825A2EA45859008AFC8E /* QuestionService.swift */; };
+		7D9582622EA84754008AFC8E /* ENVIRONMENT_SETUP.md in Resources */ = {isa = PBXBuildFile; fileRef = 7D95825E2EA84754008AFC8E /* ENVIRONMENT_SETUP.md */; };
+		7D9582632EA84754008AFC8E /* Config-Secrets.plist in Resources */ = {isa = PBXBuildFile; fileRef = 7D95825F2EA84754008AFC8E /* Config-Secrets.plist */; };
+		7D9582642EA84754008AFC8E /* Config-Example.plist in Resources */ = {isa = PBXBuildFile; fileRef = 7D9582602EA84754008AFC8E /* Config-Example.plist */; };
+		7D9582652EA84754008AFC8E /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9582612EA84754008AFC8E /* Config.swift */; };
 		7DCCAE012E9F30B2003A8156 /* TheDailyDevApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DCCAE002E9F30B2003A8156 /* TheDailyDevApp.swift */; };
 		7DCCAE032E9F30B2003A8156 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DCCAE022E9F30B2003A8156 /* ContentView.swift */; };
 		7DCCAE052E9F30B4003A8156 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7DCCAE042E9F30B4003A8156 /* Assets.xcassets */; };
@@ -14,6 +22,11 @@
 		7DCCAE122E9F30B4003A8156 /* TheDailyDevTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DCCAE112E9F30B4003A8156 /* TheDailyDevTests.swift */; };
 		7DCCAE1C2E9F30B4003A8156 /* TheDailyDevUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DCCAE1B2E9F30B4003A8156 /* TheDailyDevUITests.swift */; };
 		7DCCAE1E2E9F30B4003A8156 /* TheDailyDevUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DCCAE1D2E9F30B4003A8156 /* TheDailyDevUITestsLaunchTests.swift */; };
+		7DCCAE2D2EA08AD5003A8156 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DCCAE2C2EA08AD5003A8156 /* LoginView.swift */; };
+		7DCCAE2F2EA08AF1003A8156 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DCCAE2E2EA08AF1003A8156 /* HomeView.swift */; };
+		7DCCAE312EA08B08003A8156 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DCCAE302EA08B08003A8156 /* ProfileView.swift */; };
+		7DCCAE342EA1D043003A8156 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 7DCCAE332EA1D043003A8156 /* Supabase */; };
+		7DCCAE362EA1D08A003A8156 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DCCAE352EA1D08A003A8156 /* SupabaseManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -34,6 +47,14 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		7D95821C2EA32EAF008AFC8E /* SignUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
+		7D9582582EA45859008AFC8E /* MultipleChoiceQuestionView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MultipleChoiceQuestionView.swift; sourceTree = "<group>"; };
+		7D9582592EA45859008AFC8E /* Question.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Question.swift; sourceTree = "<group>"; };
+		7D95825A2EA45859008AFC8E /* QuestionService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = QuestionService.swift; sourceTree = "<group>"; };
+		7D95825E2EA84754008AFC8E /* ENVIRONMENT_SETUP.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = ENVIRONMENT_SETUP.md; sourceTree = "<group>"; };
+		7D95825F2EA84754008AFC8E /* Config-Secrets.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Config-Secrets.plist"; sourceTree = "<group>"; };
+		7D9582602EA84754008AFC8E /* Config-Example.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Config-Example.plist"; sourceTree = "<group>"; };
+		7D9582612EA84754008AFC8E /* Config.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		7DCCADFD2E9F30B2003A8156 /* TheDailyDev.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TheDailyDev.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7DCCAE002E9F30B2003A8156 /* TheDailyDevApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheDailyDevApp.swift; sourceTree = "<group>"; };
 		7DCCAE022E9F30B2003A8156 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -44,6 +65,10 @@
 		7DCCAE172E9F30B4003A8156 /* TheDailyDevUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TheDailyDevUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7DCCAE1B2E9F30B4003A8156 /* TheDailyDevUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheDailyDevUITests.swift; sourceTree = "<group>"; };
 		7DCCAE1D2E9F30B4003A8156 /* TheDailyDevUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheDailyDevUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		7DCCAE2C2EA08AD5003A8156 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		7DCCAE2E2EA08AF1003A8156 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		7DCCAE302EA08B08003A8156 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		7DCCAE352EA1D08A003A8156 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,6 +76,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7DCCAE342EA1D043003A8156 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -74,6 +100,10 @@
 		7DCCADF42E9F30B2003A8156 = {
 			isa = PBXGroup;
 			children = (
+				7D9582602EA84754008AFC8E /* Config-Example.plist */,
+				7D95825F2EA84754008AFC8E /* Config-Secrets.plist */,
+				7D9582612EA84754008AFC8E /* Config.swift */,
+				7D95825E2EA84754008AFC8E /* ENVIRONMENT_SETUP.md */,
 				7DCCADFF2E9F30B2003A8156 /* TheDailyDev */,
 				7DCCAE102E9F30B4003A8156 /* TheDailyDevTests */,
 				7DCCAE1A2E9F30B4003A8156 /* TheDailyDevUITests */,
@@ -96,6 +126,14 @@
 			children = (
 				7DCCAE002E9F30B2003A8156 /* TheDailyDevApp.swift */,
 				7DCCAE022E9F30B2003A8156 /* ContentView.swift */,
+				7D95821C2EA32EAF008AFC8E /* SignUpView.swift */,
+				7D9582582EA45859008AFC8E /* MultipleChoiceQuestionView.swift */,
+				7D9582592EA45859008AFC8E /* Question.swift */,
+				7D95825A2EA45859008AFC8E /* QuestionService.swift */,
+				7DCCAE2C2EA08AD5003A8156 /* LoginView.swift */,
+				7DCCAE2E2EA08AF1003A8156 /* HomeView.swift */,
+				7DCCAE302EA08B08003A8156 /* ProfileView.swift */,
+				7DCCAE352EA1D08A003A8156 /* SupabaseManager.swift */,
 				7DCCAE042E9F30B4003A8156 /* Assets.xcassets */,
 				7DCCAE062E9F30B4003A8156 /* Preview Content */,
 			);
@@ -143,6 +181,9 @@
 			dependencies = (
 			);
 			name = TheDailyDev;
+			packageProductDependencies = (
+				7DCCAE332EA1D043003A8156 /* Supabase */,
+			);
 			productName = TheDailyDev;
 			productReference = 7DCCADFD2E9F30B2003A8156 /* TheDailyDev.app */;
 			productType = "com.apple.product-type.application";
@@ -215,6 +256,9 @@
 				Base,
 			);
 			mainGroup = 7DCCADF42E9F30B2003A8156;
+			packageReferences = (
+				7DCCAE322EA1D042003A8156 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			productRefGroup = 7DCCADFE2E9F30B2003A8156 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -233,6 +277,9 @@
 			files = (
 				7DCCAE082E9F30B4003A8156 /* Preview Assets.xcassets in Resources */,
 				7DCCAE052E9F30B4003A8156 /* Assets.xcassets in Resources */,
+				7D9582632EA84754008AFC8E /* Config-Secrets.plist in Resources */,
+				7D9582622EA84754008AFC8E /* ENVIRONMENT_SETUP.md in Resources */,
+				7D9582642EA84754008AFC8E /* Config-Example.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -257,6 +304,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7DCCAE2D2EA08AD5003A8156 /* LoginView.swift in Sources */,
+				7DCCAE2F2EA08AF1003A8156 /* HomeView.swift in Sources */,
+				7D95825B2EA45859008AFC8E /* MultipleChoiceQuestionView.swift in Sources */,
+				7D95825C2EA45859008AFC8E /* Question.swift in Sources */,
+				7D9582652EA84754008AFC8E /* Config.swift in Sources */,
+				7DCCAE312EA08B08003A8156 /* ProfileView.swift in Sources */,
+				7D95821D2EA32EAF008AFC8E /* SignUpView.swift in Sources */,
+				7DCCAE362EA1D08A003A8156 /* SupabaseManager.swift in Sources */,
+				7D95825D2EA45859008AFC8E /* QuestionService.swift in Sources */,
 				7DCCAE032E9F30B2003A8156 /* ContentView.swift in Sources */,
 				7DCCAE012E9F30B2003A8156 /* TheDailyDevApp.swift in Sources */,
 			);
@@ -582,6 +638,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7DCCAE322EA1D042003A8156 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase-community/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7DCCAE332EA1D043003A8156 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7DCCAE322EA1D042003A8156 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 7DCCADF52E9F30B2003A8156 /* Project object */;
 }
