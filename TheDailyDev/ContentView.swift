@@ -30,7 +30,6 @@ struct ContentView: View {
                     .buttonStyle(.plain)
                     .foregroundColor(.blue)
                 }
-                .navigationTitle("Welcome")
             }
         }
     }

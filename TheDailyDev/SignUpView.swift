@@ -97,7 +97,7 @@ struct SignUpView: View {
         )
         
         // Use the authenticated client to insert the profile
-        let response = try await SupabaseManager.shared.client
+        _ = try await SupabaseManager.shared.client
             .from("user_profiles")
             .insert(profileData)
             .execute()

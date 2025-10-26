@@ -32,11 +32,15 @@ struct QuestionContent: Codable {
     let question: String
     let options: [QuestionOption]?
     let diagramRef: String?
+    let imageUrl: String?
+    let imageAlt: String?
     
     enum CodingKeys: String, CodingKey {
         case question
         case options
         case diagramRef = "diagram_ref"
+        case imageUrl = "image_url"
+        case imageAlt = "image_alt"
     }
 }
 
@@ -78,6 +82,29 @@ struct UserProgress: Codable {
     }
 }
 
+// MARK: - User Progress with Question
+struct UserProgressWithQuestion: Codable {
+    let id: UUID
+    let userId: UUID
+    let questionId: UUID
+    let answer: QuestionAnswer?
+    let isCorrect: Bool?
+    let timeTaken: Int?
+    let completedAt: String
+    let question: Question?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case questionId = "question_id"
+        case answer
+        case isCorrect = "is_correct"
+        case timeTaken = "time_taken"
+        case completedAt = "completed_at"
+        case question
+    }
+}
+
 // MARK: - Daily Challenge
 struct DailyChallenge: Codable {
     let id: UUID
@@ -91,4 +118,13 @@ struct DailyChallenge: Codable {
         case challengeDate = "challenge_date"
         case question
     }
+}
+
+// MARK: - Category Performance
+struct CategoryPerformance: Identifiable {
+    let id = UUID()
+    let category: String
+    let correctAnswers: Int
+    let totalAnswers: Int
+    let percentage: Double
 }

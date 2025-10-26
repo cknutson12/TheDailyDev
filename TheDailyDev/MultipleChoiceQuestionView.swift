@@ -2,15 +2,21 @@ import SwiftUI
 
 struct MultipleChoiceQuestionView: View {
     let question: Question
+    let onComplete: (() -> Void)?
     @State private var selectedOptionId: String?
     @State private var showResult = false
     @State private var isCorrect = false
     @State private var timeStarted = Date()
     
+    init(question: Question, onComplete: (() -> Void)? = nil) {
+        self.question = question
+        self.onComplete = onComplete
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             // Question Header
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 12) {
                 Text(question.title)
                     .font(.title2)
                     .bold()
@@ -18,6 +24,17 @@ struct MultipleChoiceQuestionView: View {
                 Text(question.content.question)
                     .font(.body)
                     .foregroundColor(.primary)
+                    .lineLimit(nil) // Allow unlimited lines
+                    .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion
+                
+                // Question Image
+                if let imageUrl = question.content.imageUrl, !imageUrl.isEmpty {
+                    QuestionImageView(
+                        imageUrl: imageUrl,
+                        imageAlt: question.content.imageAlt,
+                        maxHeight: 250
+                    )
+                }
             }
             
             // Difficulty and Category
@@ -85,12 +102,26 @@ struct MultipleChoiceQuestionView: View {
                     }
                     
                     if let explanation = question.explanation {
-                        Text(explanation)
-                            .font(.body)
+                        //  Simple adaptive text
+                        AdaptiveText(explanation, maxFontSize: 16, minFontSize: 12)
                             .foregroundColor(.secondary)
                             .padding()
                             .background(Color.gray.opacity(0.1))
                             .cornerRadius(8)
+                        
+                        // Another option to try based on feedback: Expandable text (uncomment to use)
+                        // ExpandableText(explanation, maxLines: 3)
+                        //     .foregroundColor(.secondary)
+                        //     .padding()
+                        //     .background(Color.gray.opacity(0.1))
+                        //     .cornerRadius(8)
+                        
+                        // Scrollable text for very long content (uncomment to use)
+                        // ScrollableText(explanation, maxHeight: 150)
+                        //     .foregroundColor(.secondary)
+                        //     .padding()
+                        //     .background(Color.gray.opacity(0.1))
+                        //     .cornerRadius(8)
                     }
                 }
                 .padding()
@@ -119,6 +150,11 @@ struct MultipleChoiceQuestionView: View {
                 isCorrect: isCorrect,
                 timeTaken: timeTaken
             )
+            
+            // Call completion callback after a short delay to show the result
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                onComplete?()
+            }
         }
     }
 }
@@ -145,6 +181,8 @@ struct OptionButton: View {
                     .font(.body)
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.leading)
+                    .lineLimit(nil) // Allow unlimited lines
+                    .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion
                 
                 Spacer()
                 
@@ -207,7 +245,9 @@ struct OptionButton: View {
                 QuestionOption(id: "c", text: "Least Connections"),
                 QuestionOption(id: "d", text: "IP Hash")
             ],
-            diagramRef: nil
+            diagramRef: nil,
+            imageUrl: nil,
+            imageAlt: nil
         ),
         correctAnswer: QuestionAnswer(correctOptionId: "a", correctText: nil),
         explanation: "Round Robin distributes requests in a circular fashion, treating all servers equally regardless of their capacity or current load.",
