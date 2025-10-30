@@ -10,12 +10,35 @@ import SwiftUI
 struct HomeView: View {
     @Binding var isLoggedIn: Bool
     @StateObject private var questionService = QuestionService.shared
+    @StateObject private var subscriptionService = SubscriptionService.shared
     @State private var showingQuestion = false
     @State private var hasAnsweredToday = false
     @State private var userName: String = ""
     @State private var currentStreak: Int = 0
+    @State private var showingSubscriptionBenefits = false
+    @State private var isLoadingInitialData = true
 
     var body: some View {
+        Group {
+            if isLoadingInitialData {
+                // Loading state
+                VStack(spacing: 20) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                    Text("Loading your data...")
+                        .foregroundColor(.secondary)
+                }
+            } else {
+                // Main content
+                mainContent
+            }
+        }
+        .task {
+            await loadInitialData()
+        }
+    }
+    
+    var mainContent: some View {
         VStack(spacing: 30) {
             Spacer()
             
@@ -76,7 +99,8 @@ struct HomeView: View {
                     .padding()
                     .background(Color.green.opacity(0.1))
                     .cornerRadius(16)
-                } else {
+                } else if let subscription = subscriptionService.currentSubscription, subscription.canAccessQuestions {
+                    // User has access - show play button
                     Button(action: {
                         showingQuestion = true
                     }) {
@@ -92,6 +116,44 @@ struct HomeView: View {
                         .background(Color.blue)
                         .cornerRadius(12)
                     }
+                    .padding(.horizontal)
+                } else {
+                    // User needs subscription - show locked state
+                    VStack(spacing: 16) {
+                        Image(systemName: "crown.fill")
+                            .font(.system(size: 50))
+                            .foregroundColor(.yellow)
+                        
+                        Text("Subscription Required")
+                            .font(.title2)
+                            .bold()
+                        
+                        Text(subscriptionService.currentSubscription?.accessStatusMessage ?? "Activate Subscription to View Today's Questions")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        
+                        Button(action: {
+                            showingSubscriptionBenefits = true
+                        }) {
+                            HStack {
+                                Image(systemName: "crown.fill")
+                                    .font(.title3)
+                                Text("Subscribe Now")
+                                    .font(.headline)
+                            }
+                            .foregroundColor(.white)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(Color.yellow)
+                            .cornerRadius(12)
+                        }
+                        .padding(.horizontal)
+                    }
+                    .padding()
+                    .background(Color.yellow.opacity(0.1))
+                    .cornerRadius(16)
                     .padding(.horizontal)
                 }
             }
@@ -113,12 +175,32 @@ struct HomeView: View {
                 hasAnsweredToday: $hasAnsweredToday
             )
         }
-        .task {
-            await loadUserData()
+        .onChange(of: showingQuestion) { oldValue, newValue in
+            // When question sheet is dismissed, refresh answered status
+            if oldValue && !newValue {
+                Task {
+                    let answered = await QuestionService.shared.hasAnsweredToday()
+                    await MainActor.run {
+                        hasAnsweredToday = answered
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingSubscriptionBenefits) {
+            SubscriptionBenefitsView(
+                onSubscribe: {
+                    Task {
+                        await handleSubscription()
+                    }
+                }
+            )
         }
     }
     
-    private func loadUserData() async {
+    private func loadInitialData() async {
+        // Load subscription status
+        await subscriptionService.fetchSubscriptionStatus()
+        
         // Load user display name (prioritizes profile name over email)
         let displayName = await QuestionService.shared.getUserDisplayName()
         await MainActor.run {
@@ -133,12 +215,30 @@ struct HomeView: View {
         
         // Check if answered today
         await checkIfAnsweredToday()
+        
+        // Mark as loaded
+        await MainActor.run {
+            self.isLoadingInitialData = false
+        }
+    }
+    
+    // MARK: - Handle Subscription
+    private func handleSubscription() async {
+        do {
+            let checkoutURL = try await subscriptionService.createCheckoutSession()
+            await MainActor.run {
+                UIApplication.shared.open(checkoutURL)
+            }
+        } catch {
+            print("Failed to create checkout session: \(error)")
+        }
     }
     
     private func checkIfAnsweredToday() async {
-        // Check if user has already answered today's question
-        // For now, we'll set this to false - you can implement actual checking later
-        hasAnsweredToday = false
+        let answered = await QuestionService.shared.hasAnsweredToday()
+        await MainActor.run {
+            hasAnsweredToday = answered
+        }
     }
 }
 
@@ -178,13 +278,47 @@ struct QuestionView: View {
                     }
                     .padding()
                 } else if let question = questionService.todaysQuestion {
-                    MultipleChoiceQuestionView(
-                        question: question,
-                        onComplete: {
-                            hasAnsweredToday = true
-                            showingCompletion = true
-                        }
-                    )
+                            // Route to appropriate question view based on type
+                            if question.content.orderingItems != nil {
+                                OrderingQuestionView(
+                                    question: question,
+                                    onComplete: {
+                                        Task {
+                                            let answered = await QuestionService.shared.hasAnsweredToday()
+                                            await MainActor.run {
+                                                hasAnsweredToday = answered
+                                                showingCompletion = true
+                                            }
+                                        }
+                                    }
+                                )
+                            } else if question.content.matchingItems != nil {
+                                MatchingQuestionView(
+                                    question: question,
+                                    onComplete: {
+                                        Task {
+                                            let answered = await QuestionService.shared.hasAnsweredToday()
+                                            await MainActor.run {
+                                                hasAnsweredToday = answered
+                                                showingCompletion = true
+                                            }
+                                        }
+                                    }
+                                )
+                            } else {
+                                MultipleChoiceQuestionView(
+                                    question: question,
+                                    onComplete: {
+                                        Task {
+                                            let answered = await QuestionService.shared.hasAnsweredToday()
+                                            await MainActor.run {
+                                                hasAnsweredToday = answered
+                                                showingCompletion = true
+                                            }
+                                        }
+                                    }
+                                )
+                            }
                 } else {
                     VStack(spacing: 16) {
                         Image(systemName: "questionmark.circle")
@@ -221,6 +355,15 @@ struct QuestionView: View {
         }
         .task {
             await questionService.fetchTodaysQuestion()
+        }
+        .onAppear {
+            // Refresh answered status when view appears
+            Task {
+                let answered = await QuestionService.shared.hasAnsweredToday()
+                await MainActor.run {
+                    hasAnsweredToday = answered
+                }
+            }
         }
     }
 }

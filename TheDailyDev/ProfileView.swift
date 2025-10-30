@@ -11,6 +11,7 @@ import Supabase
 struct ProfileView: View {
     @Binding var isLoggedIn: Bool
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var subscriptionService = SubscriptionService.shared
     @State private var isSigningOut = false
     @State private var signOutError: String?
     @State private var progressHistory: [UserProgressWithQuestion] = []
@@ -18,6 +19,8 @@ struct ProfileView: View {
     @State private var userName: String = ""
     @State private var categoryPerformances: [CategoryPerformance] = []
     @State private var isLoadingCategories = false
+    @State private var showingSubscriptionSettings = false
+    @State private var showingSubscriptionBenefits = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,27 +36,76 @@ struct ProfileView: View {
                             .padding(.horizontal, 20)
                             .padding(.top, 20)
                     }
-
-                    // Contributions Tracker (no duplicate header)
-                    if isLoadingHistory {
-                        VStack {
-                            ProgressView("Loading your progress...")
-                                .frame(maxWidth: .infinity, maxHeight: 200)
-                        }
-                    } else {
-                        ContributionsTracker(progressHistory: progressHistory)
-                            .padding(.horizontal)
-                    }
                     
-                    // Category Performance
-                    if isLoadingCategories {
-                        VStack {
-                            ProgressView("Loading category performance...")
-                                .frame(maxWidth: .infinity, maxHeight: 100)
+                    // Subscription Status
+                    if let subscription = subscriptionService.currentSubscription {
+                        if subscription.isActive {
+                            // Show stats for subscribers
+                            if isLoadingHistory {
+                                VStack {
+                                    ProgressView("Loading your progress...")
+                                        .frame(maxWidth: .infinity, maxHeight: 200)
+                                }
+                            } else {
+                                ContributionsTracker(progressHistory: progressHistory)
+                                    .padding(.horizontal)
+                            }
+                            
+                            if isLoadingCategories {
+                                VStack {
+                                    ProgressView("Loading category performance...")
+                                        .frame(maxWidth: .infinity, maxHeight: 100)
+                                }
+                            } else {
+                                CategoryPerformanceView(categoryPerformances: categoryPerformances)
+                                    .padding(.horizontal)
+                            }
+                        } else {
+                            // Show upgrade prompt for non-subscribers
+                            VStack(spacing: 16) {
+                                Image(systemName: "crown.fill")
+                                    .font(.system(size: 50))
+                                    .foregroundColor(.yellow)
+                                
+                                Text("Upgrade to See Question Stats")
+                                    .font(.title2)
+                                    .bold()
+                                
+                                Text("Unlock detailed analytics, question history, and performance tracking with a subscription")
+                                    .font(.body)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                
+                                Button(action: {
+                                    showingSubscriptionBenefits = true
+                                }) {
+                                    HStack {
+                                        Image(systemName: "crown.fill")
+                                        Text("Subscribe Now")
+                                    }
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .padding()
+                                    .frame(maxWidth: .infinity)
+                                    .background(Color.yellow)
+                                    .cornerRadius(12)
+                                }
+                            }
+                            .padding()
+                            .background(Color.yellow.opacity(0.1))
+                            .cornerRadius(16)
+                            .padding(.horizontal)
                         }
                     } else {
-                        CategoryPerformanceView(categoryPerformances: categoryPerformances)
-                            .padding(.horizontal)
+                        // No subscription - show benefits
+                        SubscriptionBenefitsView(
+                            onSubscribe: {
+                                Task {
+                                    await handleSubscription()
+                                }
+                            }
+                        )
+                        .padding(.horizontal)
                     }
                 }
                 .padding(.bottom, 20)
@@ -102,6 +154,32 @@ struct ProfileView: View {
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showingSubscriptionSettings = true
+                }) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.title3)
+                }
+            }
+        }
+        .sheet(isPresented: $showingSubscriptionBenefits) {
+            SubscriptionBenefitsView(
+                onSubscribe: {
+                    Task {
+                        await handleSubscription()
+                    }
+                }
+            )
+        }
+        .sheet(isPresented: $showingSubscriptionSettings) {
+            if let subscription = subscriptionService.currentSubscription {
+                SubscriptionSettingsView(subscription: .constant(subscription))
+            } else {
+                SubscriptionSettingsView(subscription: .constant(nil))
+            }
+        }
         .onAppear {
             Task {
                 await loadUserData()
@@ -109,17 +187,34 @@ struct ProfileView: View {
         }
     }
     
+    // MARK: - Handle Subscription
+    private func handleSubscription() async {
+        do {
+            let checkoutURL = try await subscriptionService.createCheckoutSession()
+            await MainActor.run {
+                UIApplication.shared.open(checkoutURL)
+            }
+        } catch {
+            print("Failed to create checkout session: \(error)")
+        }
+    }
+    
     // MARK: - Load User Data
     private func loadUserData() async {
+        // Load subscription status
+        await subscriptionService.fetchSubscriptionStatus()
+        
         // Load user display name (prioritizes profile name over email)
         let displayName = await QuestionService.shared.getUserDisplayName()
         await MainActor.run {
             self.userName = displayName
         }
         
-        // Load progress history and category performance
-        await loadProgressHistory()
-        await loadCategoryPerformance()
+        // Load progress history and category performance (only for subscribers)
+        if subscriptionService.currentSubscription?.isActive == true {
+            await loadProgressHistory()
+            await loadCategoryPerformance()
+        }
     }
     
     // MARK: - Load Progress History

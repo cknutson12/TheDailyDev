@@ -19,4 +19,9 @@ struct Config {
         }
         return key
     }
+    
+    // MARK: - Helper to get function URL
+    static func getFunctionURL(functionName: String) -> URL? {
+        return URL(string: "\(supabaseURL)/functions/v1/\(functionName)")
+    }
 }

@@ -94,6 +94,74 @@ class QuestionService: ObservableObject {
         }
     }
     
+    // MARK: - Submit Matching Answer
+    func submitMatchingAnswer(questionId: UUID, matches: [String: String], isCorrect: Bool, timeTaken: Int) async {
+        do {
+            // Get the current authenticated user
+            let session = try await SupabaseManager.shared.client.auth.session
+            let userId = session.user.id
+            
+            print("🔐 Authenticated user ID: \(userId)")
+            print("📝 Submitting matching answer with \(matches.count) matches")
+            
+            // Convert matches dictionary to JSON string for storage
+            let matchesData = try JSONEncoder().encode(matches)
+            let matchesString = String(data: matchesData, encoding: .utf8) ?? "{}"
+            
+            let progress = UserProgress(
+                id: UUID(),
+                userId: userId,
+                questionId: questionId,
+                answer: QuestionAnswer(correctOptionId: nil, correctText: matchesString),
+                isCorrect: isCorrect,
+                timeTaken: timeTaken,
+                completedAt: ISO8601DateFormatter().string(from: Date())
+            )
+            
+            try await SupabaseManager.shared.client
+                .from("user_progress")
+                .insert(progress)
+                .execute()
+                
+            print("✅ Matching answer saved successfully")
+        } catch {
+            print("❌ Failed to save matching answer: \(error)")
+        }
+    }
+    
+    // MARK: - Submit Ordering Answer
+    func submitOrderingAnswer(questionId: UUID, orderIds: [String], isCorrect: Bool, timeTaken: Int) async {
+        do {
+            let session = try await SupabaseManager.shared.client.auth.session
+            let userId = session.user.id
+            
+            print("🔐 Authenticated user ID: \(userId)")
+            print("📝 Submitting ordering answer with \(orderIds.count) items")
+            
+            let orderData = try JSONEncoder().encode(orderIds)
+            let orderString = String(data: orderData, encoding: .utf8) ?? "[]"
+            
+            let progress = UserProgress(
+                id: UUID(),
+                userId: userId,
+                questionId: questionId,
+                answer: QuestionAnswer(correctOptionId: nil, correctText: orderString),
+                isCorrect: isCorrect,
+                timeTaken: timeTaken,
+                completedAt: ISO8601DateFormatter().string(from: Date())
+            )
+            
+            try await SupabaseManager.shared.client
+                .from("user_progress")
+                .insert(progress)
+                .execute()
+            
+            print("✅ Ordering answer saved successfully")
+        } catch {
+            print("❌ Failed to save ordering answer: \(error)")
+        }
+    }
+    
     // MARK: - Get User Info
     func getCurrentUser() async -> User? {
         do {
@@ -108,19 +176,22 @@ class QuestionService: ObservableObject {
     // MARK: - Get User Display Name
     func getUserDisplayName() async -> String {
         do {
-            // First try to get the user profile name
             let session = try await SupabaseManager.shared.client.auth.session
-            let userId = session.user.id
+            let userId = session.user.id.uuidString
             
-            let response: [UserProfile] = try await SupabaseManager.shared.client
-                .from("user_profiles")
-                .select("*")
-                .eq("id", value: userId.uuidString)
+            // Get subscription with name info
+            let subscriptions: [UserSubscription] = try await SupabaseManager.shared.client
+                .from("user_subscriptions")
+                .select()
+                .eq("user_id", value: userId)
+                .order("created_at", ascending: false)
+                .limit(1)
                 .execute()
                 .value
             
-            if let profile = response.first, !profile.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return profile.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Use full name from subscription if available
+            if let subscription = subscriptions.first, !subscription.fullName.isEmpty, subscription.fullName != "User" {
+                return subscription.fullName
             }
             
             // Fallback to user metadata name
@@ -209,6 +280,42 @@ class QuestionService: ObservableObject {
         }.sorted { $0.percentage > $1.percentage }
         
         return performances
+    }
+    
+    // MARK: - Check if User Answered Today
+    func hasAnsweredToday() async -> Bool {
+        do {
+            // Get today's question ID
+            let todayDateString = getCurrentDateString()
+            let challengeResponse: [DailyChallenge] = try await SupabaseManager.shared.client
+                .from("daily_challenges")
+                .select("id, question_id, challenge_date")
+                .eq("challenge_date", value: todayDateString)
+                .execute()
+                .value
+            
+            guard let challenge = challengeResponse.first else {
+                return false
+            }
+            
+            // Check if user has progress for today's question
+            let session = try await SupabaseManager.shared.client.auth.session
+            let userId = session.user.id
+            
+            let progressResponse: [UserProgress] = try await SupabaseManager.shared.client
+                .from("user_progress")
+                .select("id, user_id, question_id, answer, is_correct, time_taken, completed_at")
+                .eq("user_id", value: userId)
+                .eq("question_id", value: challenge.questionId)
+                .limit(1)
+                .execute()
+                .value
+            
+            return !progressResponse.isEmpty
+        } catch {
+            print("❌ Failed to check if answered today: \(error)")
+            return false
+        }
     }
     
     // MARK: - Helper Methods

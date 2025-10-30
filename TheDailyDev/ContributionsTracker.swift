@@ -394,67 +394,199 @@ struct QuestionReviewView: View {
                         }
                         
                         // Answer Section
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Your Answer")
-                                .font(.headline)
-                            
-                            if let answer = progress.answer,
-                               let selectedOptionId = answer.correctOptionId,
-                               let options = question.content.options {
-                                
-                                if let selectedOption = options.first(where: { $0.id == selectedOptionId }) {
-                                    HStack {
-                                        Text(selectedOption.id.uppercased())
-                                            .font(.headline)
-                                            .foregroundColor(.white)
-                                            .frame(width: 30, height: 30)
-                                            .background(progress.isCorrect == true ? .green : .red)
-                                            .clipShape(Circle())
-                                        
-                                        Text(selectedOption.text)
-                                            .font(.body)
-                                        
-                                        Spacer()
-                                        
-                                        Image(systemName: progress.isCorrect == true ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                            .foregroundColor(progress.isCorrect == true ? .green : .red)
-                                    }
-                                    .padding()
-                                    .background((progress.isCorrect == true ? Color.green : Color.red).opacity(0.1))
-                                    .cornerRadius(12)
-                                }
+                        if let orderingItems = question.content.orderingItems, !orderingItems.isEmpty {
+                            // Ordering Question Answer Display
+                            let correctOrderIds = question.content.correctOrderIds ?? []
+                            let idToText: [String: String] = orderingItems.reduce(into: [:]) { dict, item in
+                                dict[item.id] = item.text
                             }
-                        }
-                        
-                        // Correct Answer
-                        let correctAnswer = question.correctAnswer
-                        if let correctOptionId = correctAnswer.correctOptionId,
-                           let options = question.content.options {
+                            let userOrderIds: [String] = {
+                                if let answer = progress.answer,
+                                   let text = answer.correctText,
+                                   let data = text.data(using: .utf8),
+                                   let arr = try? JSONDecoder().decode([String].self, from: data) {
+                                    return arr
+                                }
+                                return []
+                            }()
+                            let correctPositions = zip(userOrderIds, correctOrderIds).reduce(0) { acc, pair in
+                                acc + (pair.0 == pair.1 ? 1 : 0)
+                            }
                             
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("Correct Answer")
+                                Text("Your Order")
                                     .font(.headline)
                                 
-                                if let correctOption = options.first(where: { $0.id == correctOptionId }) {
-                                    HStack {
-                                        Text(correctOption.id.uppercased())
-                                            .font(.headline)
-                                            .foregroundColor(.white)
-                                            .frame(width: 30, height: 30)
-                                            .background(.green)
-                                            .clipShape(Circle())
-                                        
-                                        Text(correctOption.text)
-                                            .font(.body)
-                                        
-                                        Spacer()
-                                        
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.green)
+                                Text("\(correctPositions)/\(correctOrderIds.count) in the correct position")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ForEach(Array(userOrderIds.enumerated()), id: \.offset) { idx, id in
+                                        let isCorrect = idx < correctOrderIds.count && correctOrderIds[idx] == id
+                                        HStack(spacing: 8) {
+                                            Text("\(idx+1).")
+                                                .foregroundColor(.secondary)
+                                            Text(idToText[id] ?? id)
+                                                .bold()
+                                            Spacer()
+                                            Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                                .foregroundColor(isCorrect ? .green : .red)
+                                        }
+                                        .font(.caption)
                                     }
-                                    .padding()
-                                    .background(.green.opacity(0.1))
-                                    .cornerRadius(12)
+                                }
+                                .padding()
+                                .background(Color.gray.opacity(0.08))
+                                .cornerRadius(8)
+                            }
+                        } else if let matchingItems = question.content.matchingItems, !matchingItems.isEmpty {
+                            // Matching Question Answer Display
+                            let draggableItems = matchingItems.filter { $0.isDraggable }
+                            let targetItems = matchingItems.filter { !$0.isDraggable }
+                            
+                            // Parse user's matches from answer
+                            let userMatches: [String: String] = {
+                                if let answer = progress.answer,
+                                   let correctText = answer.correctText,
+                                   let matchesData = correctText.data(using: .utf8),
+                                   let parsedMatches = try? JSONDecoder().decode([String: String].self, from: matchesData) {
+                                    return parsedMatches
+                                }
+                                return [:]
+                            }()
+                            
+                            // Calculate correct pairs
+                            let correctMatches = question.content.correctMatches ?? []
+                            let correctCount = correctMatches.reduce(0) { count, pair in
+                                count + ((userMatches[pair.targetId] == pair.sourceId) ? 1 : 0)
+                            }
+                            
+                            // Your Matches
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Your Matches")
+                                    .font(.headline)
+                                
+                                Text("\(correctCount)/\(correctMatches.count) matches correct")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .padding(.bottom, 4)
+                                
+                                ForEach(targetItems) { target in
+                                    if let sourceId = userMatches[target.id],
+                                       let source = draggableItems.first(where: { $0.id == sourceId }) {
+                                        let isCorrect = correctMatches.first(where: { $0.targetId == target.id && $0.sourceId == sourceId }) != nil
+                                        
+                                        HStack(alignment: .top, spacing: 8) {
+                                            Text("•")
+                                            Text("\(source.text)")
+                                                .bold()
+                                            Text("→")
+                                            Text("\(target.text)")
+                                            
+                                            Spacer()
+                                            
+                                            Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                                .foregroundColor(isCorrect ? .green : .red)
+                                        }
+                                        .font(.caption)
+                                        .padding(.vertical, 4)
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(Color.gray.opacity(0.08))
+                            .cornerRadius(8)
+                            
+                            // Correct Matches (only show if not all correct)
+                            if correctCount < correctMatches.count {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Correct Matches")
+                                        .font(.headline)
+                                    
+                                    ForEach(correctMatches, id: \.sourceId) { pair in
+                                        if let source = draggableItems.first(where: { $0.id == pair.sourceId }),
+                                           let target = targetItems.first(where: { $0.id == pair.targetId }) {
+                                            HStack(alignment: .top, spacing: 8) {
+                                                Text("•")
+                                                Text("\(source.text)")
+                                                    .bold()
+                                                Text("→")
+                                                Text("\(target.text)")
+                                            }
+                                            .font(.caption)
+                                            .padding(.vertical, 4)
+                                        }
+                                    }
+                                }
+                                .padding()
+                                .background(Color.blue.opacity(0.05))
+                                .cornerRadius(8)
+                            }
+                        } else {
+                            // Multiple Choice Answer Display
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Your Answer")
+                                    .font(.headline)
+                                
+                                if let answer = progress.answer,
+                                   let selectedOptionId = answer.correctOptionId,
+                                   let options = question.content.options {
+                                    
+                                    if let selectedOption = options.first(where: { $0.id == selectedOptionId }) {
+                                        HStack {
+                                            Text(selectedOption.id.uppercased())
+                                                .font(.headline)
+                                                .foregroundColor(.white)
+                                                .frame(width: 30, height: 30)
+                                                .background(progress.isCorrect == true ? .green : .red)
+                                                .clipShape(Circle())
+                                            
+                                            Text(selectedOption.text)
+                                                .font(.body)
+                                            
+                                            Spacer()
+                                            
+                                            Image(systemName: progress.isCorrect == true ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                                .foregroundColor(progress.isCorrect == true ? .green : .red)
+                                        }
+                                        .padding()
+                                        .background((progress.isCorrect == true ? Color.green : Color.red).opacity(0.1))
+                                        .cornerRadius(12)
+                                    }
+                                }
+                            }
+                            
+                            // Correct Answer
+                            let correctAnswer = question.correctAnswer
+                            if let correctOptionId = correctAnswer.correctOptionId,
+                               let options = question.content.options {
+                                
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Correct Answer")
+                                        .font(.headline)
+                                    
+                                    if let correctOption = options.first(where: { $0.id == correctOptionId }) {
+                                        HStack {
+                                            Text(correctOption.id.uppercased())
+                                                .font(.headline)
+                                                .foregroundColor(.white)
+                                                .frame(width: 30, height: 30)
+                                                .background(.green)
+                                                .clipShape(Circle())
+                                            
+                                            Text(correctOption.text)
+                                                .font(.body)
+                                            
+                                            Spacer()
+                                            
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.green)
+                                        }
+                                        .padding()
+                                        .background(.green.opacity(0.1))
+                                        .cornerRadius(12)
+                                    }
                                 }
                             }
                         }

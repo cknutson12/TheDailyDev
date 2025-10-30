@@ -34,6 +34,10 @@ struct QuestionContent: Codable {
     let diagramRef: String?
     let imageUrl: String?
     let imageAlt: String?
+    let matchingItems: [MatchingItem]?
+    let correctMatches: [MatchPair]?
+    let orderingItems: [OrderingItem]?
+    let correctOrderIds: [String]?
     
     enum CodingKeys: String, CodingKey {
         case question
@@ -41,11 +45,45 @@ struct QuestionContent: Codable {
         case diagramRef = "diagram_ref"
         case imageUrl = "image_url"
         case imageAlt = "image_alt"
+        case matchingItems = "matching_items"
+        case correctMatches = "correct_matches"
+        case orderingItems = "ordering_items"
+        case correctOrderIds = "correct_order_ids"
     }
 }
 
 // MARK: - Question Option
 struct QuestionOption: Codable, Identifiable {
+    let id: String
+    let text: String
+}
+
+// MARK: - Matching Item
+struct MatchingItem: Codable, Identifiable {
+    let id: String
+    let text: String
+    let isDraggable: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case text
+        case isDraggable = "is_draggable"
+    }
+}
+
+// MARK: - Match Pair
+struct MatchPair: Codable {
+    let sourceId: String
+    let targetId: String
+    
+    enum CodingKeys: String, CodingKey {
+        case sourceId = "source_id"
+        case targetId = "target_id"
+    }
+}
+
+// MARK: - Ordering Item
+struct OrderingItem: Codable, Identifiable {
     let id: String
     let text: String
 }

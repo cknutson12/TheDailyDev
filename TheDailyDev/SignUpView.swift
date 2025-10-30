@@ -4,10 +4,12 @@ struct SignUpView: View {
     @Binding var isLoggedIn: Bool
     @State private var email = ""
     @State private var password = ""
-    @State private var name = ""
-    @State private var dateOfBirth = Date()
+    @State private var firstName = ""
+    @State private var lastName = ""
     @State private var message = ""
     @State private var isLoading = false
+    @State private var showingSubscriptionBenefits = false
+    @StateObject private var subscriptionService = SubscriptionService.shared
     
     var body: some View {
         VStack(spacing: 20) {
@@ -15,7 +17,11 @@ struct SignUpView: View {
                 .font(.largeTitle)
                 .bold()
             
-            TextField("Full Name", text: $name)
+            TextField("First Name", text: $firstName)
+                .textFieldStyle(.roundedBorder)
+                .autocapitalization(.words)
+            
+            TextField("Last Name", text: $lastName)
                 .textFieldStyle(.roundedBorder)
                 .autocapitalization(.words)
             
@@ -26,9 +32,6 @@ struct SignUpView: View {
             
             SecureField("Password", text: $password)
                 .textFieldStyle(.roundedBorder)
-            
-            DatePicker("Date of Birth", selection: $dateOfBirth, displayedComponents: .date)
-                .datePickerStyle(.wheel)
             
             if !message.isEmpty {
                 Text(message)
@@ -52,6 +55,51 @@ struct SignUpView: View {
             .disabled(isLoading)
         }
         .padding()
+        .sheet(isPresented: $showingSubscriptionBenefits) {
+            SubscriptionBenefitsView(
+                onSubscribe: {
+                    Task {
+                        await handleSubscription()
+                    }
+                },
+                onSkip: {
+                    showingSubscriptionBenefits = false
+                    isLoggedIn = true
+                }
+            )
+        }
+    }
+    
+    // MARK: - Handle Subscription
+    private func handleSubscription() async {
+        do {
+            print("🔄 Creating Stripe checkout session...")
+            let checkoutURL = try await subscriptionService.createCheckoutSession()
+            print("✅ Checkout session created: \(checkoutURL)")
+            
+            await MainActor.run {
+                print("🌐 Opening Safari with checkout URL...")
+                if UIApplication.shared.canOpenURL(checkoutURL) {
+                    UIApplication.shared.open(checkoutURL) { success in
+                        if success {
+                            print("✅ Safari opened successfully")
+                        } else {
+                            print("❌ Failed to open Safari")
+                        }
+                    }
+                } else {
+                    print("❌ Cannot open URL: \(checkoutURL)")
+                    message = "Cannot open browser. Please check your settings."
+                }
+            }
+        } catch {
+            print("❌ Failed to create checkout session: \(error)")
+            await MainActor.run {
+                message = "Failed to start subscription: \(error.localizedDescription)"
+                showingSubscriptionBenefits = false
+                isLoggedIn = true
+            }
+        }
     }
     
     // MARK: - Supabase Sign Up with Profile Data
@@ -68,53 +116,37 @@ struct SignUpView: View {
             
             // If sign-up was successful, create user profile
             let user = session.user
-            isLoggedIn = true
             
-            // Create user profile in the background
+            // Create user subscription record in the background
             Task {
                 do {
-                    try await createUserProfile(userId: user.id, name: name, dateOfBirth: dateOfBirth)
+                    try await createUserSubscription(userId: user.id)
                 } catch {
-                    print("Failed to create user profile: \(error)")
+                    print("Failed to create user subscription: \(error)")
                 }
             }
             
-            message = "Account created successfully!"
+            // Show subscription benefits screen
+            await MainActor.run {
+                showingSubscriptionBenefits = true
+            }
         } catch {
             isLoggedIn = false
             message = "Sign-up failed: \(error.localizedDescription)"
         }
     }
     
-    // MARK: - Create User Profile
-    func createUserProfile(userId: UUID, name: String, dateOfBirth: Date) async throws {
-        let formatter = ISO8601DateFormatter()
-        let profileData = UserProfile(
-            id: userId.uuidString,
-            name: name,
-            dateOfBirth: formatter.string(from: dateOfBirth),
-            createdAt: formatter.string(from: Date())
-        )
-        
-        // Use the authenticated client to insert the profile
+    // MARK: - Create User Subscription Record
+    func createUserSubscription(userId: UUID) async throws {
+        // Insert into user_subscriptions with name info
         _ = try await SupabaseManager.shared.client
-            .from("user_profiles")
-            .insert(profileData)
+            .from("user_subscriptions")
+            .insert([
+                "user_id": userId.uuidString,
+                "first_name": firstName.isEmpty ? nil : firstName,
+                "last_name": lastName.isEmpty ? nil : lastName,
+                "status": "inactive"
+            ])
             .execute()
-    }
-}
-
-// MARK: - User Profile Model
-struct UserProfile: Codable {
-    let id: String
-    let name: String
-    let dateOfBirth: String
-    let createdAt: String
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case name
-        case dateOfBirth = "date_of_birth"
-        case createdAt = "created_at"
     }
 }

@@ -151,8 +151,8 @@ struct MultipleChoiceQuestionView: View {
                 timeTaken: timeTaken
             )
             
-            // Call completion callback after a short delay to show the result
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            // Call completion callback after delay to allow reading result
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) {
                 onComplete?()
             }
         }
@@ -247,7 +247,11 @@ struct OptionButton: View {
             ],
             diagramRef: nil,
             imageUrl: nil,
-            imageAlt: nil
+            imageAlt: nil,
+            matchingItems: nil,
+            correctMatches: nil,
+            orderingItems: nil,
+            correctOrderIds: nil
         ),
         correctAnswer: QuestionAnswer(correctOptionId: "a", correctText: nil),
         explanation: "Round Robin distributes requests in a circular fashion, treating all servers equally regardless of their capacity or current load.",
