@@ -4,10 +4,11 @@ import SwiftUI
 struct ContentView: View {
     @State private var isLoggedIn = false
     @State private var showSignUp = false
+    @StateObject private var authManager = AuthManager.shared
 
     var body: some View {
         NavigationStack {
-            if isLoggedIn {
+            if authManager.isAuthenticated || isLoggedIn {
                 HomeView(isLoggedIn: $isLoggedIn)
             } else {
                 VStack(spacing: 20) {
@@ -31,6 +32,20 @@ struct ContentView: View {
                     .foregroundColor(.blue)
                 }
             }
+        }
+        .id(isLoggedIn || authManager.isAuthenticated ? "loggedIn" : "loggedOut")
+        .task {
+            // Check for existing session on app launch
+            await authManager.checkSession()
+            if authManager.isAuthenticated {
+                // Ensure user_subscriptions record exists for OAuth users
+                await SubscriptionService.shared.ensureUserSubscriptionRecord()
+                isLoggedIn = true
+            }
+        }
+        .onChange(of: authManager.isAuthenticated) { oldValue, newValue in
+            // Update isLoggedIn when auth state changes
+            isLoggedIn = newValue
         }
     }
 }

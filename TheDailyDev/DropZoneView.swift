@@ -13,9 +13,10 @@ struct DropZoneView: View {
         VStack(alignment: .leading, spacing: 8) {
             // Target label
             Text(target.text)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.leading)
+                .font(.body)
+                .foregroundColor(.white)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
             
             // Drop zone area
             ZStack {
@@ -27,13 +28,13 @@ struct DropZoneView: View {
                             dash: matchedItem == nil ? [8, 4] : []
                         )
                     )
-                    .foregroundColor(isTargeted ? .green : .gray.opacity(0.5))
+                    .foregroundColor(isTargeted ? Theme.Colors.accentGreen : Theme.Colors.border)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
                             .fill(
                                 matchedItem != nil
-                                    ? Color.blue.opacity(0.1)
-                                    : (isTargeted ? Color.green.opacity(0.1) : Color.clear)
+                                    ? Theme.Colors.subtleBlue.opacity(0.1)
+                                    : (isTargeted ? Theme.Colors.accentGreen.opacity(0.1) : Color.clear)
                             )
                     )
                     .frame(height: 60)
@@ -44,13 +45,13 @@ struct DropZoneView: View {
                     HStack {
                         Text(matched.text)
                             .font(.body)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
                         
                         Spacer()
                         
                         Button(action: onRemove) {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.gray)
+                                .foregroundColor(Theme.Colors.stateIncorrect)
                         }
                     }
                     .padding(.horizontal, 12)
@@ -58,7 +59,7 @@ struct DropZoneView: View {
                     // Show placeholder
                     Text("Drop here")
                         .font(.caption)
-                        .foregroundColor(.gray.opacity(0.6))
+                        .foregroundColor(Theme.Colors.textSecondary)
                 }
             }
         }

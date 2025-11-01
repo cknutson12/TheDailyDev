@@ -17,13 +17,117 @@ class SubscriptionService: ObservableObject {
     
     private init() {}
     
+    // MARK: - Extract Name from User Metadata
+    private func extractNameFromMetadata(userMetadata: [String: Any]) -> (String?, String?) {
+        var firstName: String?
+        var lastName: String?
+        
+        // Try multiple possible name fields from OAuth providers and auth.users
+        let nameFields = ["full_name", "name", "display_name", "displayName", "fullName"]
+        var fullName: String?
+        
+        for field in nameFields {
+            if let nameValue = userMetadata[field] {
+                // Try direct String cast first
+                if let name = nameValue as? String, !name.isEmpty {
+                    fullName = name
+                    break
+                }
+                
+                // If not String, try converting AnyJSON using string description
+                // AnyJSON's description should give us the underlying value
+                let stringValue = String(describing: nameValue)
+                if !stringValue.isEmpty && stringValue != "nil" && !stringValue.hasPrefix("AnyJSON") {
+                    fullName = stringValue
+                    break
+                }
+            }
+        }
+        
+        if let fullName = fullName {
+            let parts = fullName.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+            firstName = parts.isEmpty ? nil : String(parts[0])
+            lastName = parts.count > 1 ? String(parts[1]) : nil
+        }
+        
+        return (firstName, lastName)
+    }
+    
+    // MARK: - Ensure User Subscription Record Exists
+    func ensureUserSubscriptionRecord() async {
+        do {
+            let session = try await SupabaseManager.shared.client.auth.session
+            let userId = session.user.id.uuidString
+            
+            // Extract name from user metadata (from auth.users table)
+            var firstName: String?
+            var lastName: String?
+            
+            // Try to get display_name from userMetadata
+            if let userMetadata = session.user.userMetadata as? [String: Any] {
+                let extracted = extractNameFromMetadata(userMetadata: userMetadata)
+                firstName = extracted.0
+                lastName = extracted.1
+            }
+            
+            // Check if record already exists
+            let existing: [UserSubscription] = try await SupabaseManager.shared.client
+                .from("user_subscriptions")
+                .select()
+                .eq("user_id", value: userId)
+                .limit(1)
+                .execute()
+                .value
+            
+            if existing.isEmpty {
+                // Create the record with extracted name
+                _ = try await SupabaseManager.shared.client
+                    .from("user_subscriptions")
+                    .insert([
+                        "user_id": userId,
+                        "first_name": firstName,
+                        "last_name": lastName,
+                        "status": "inactive"
+                    ])
+                    .execute()
+                
+            } else {
+                // Record exists - update it if name is missing but now available
+                if let existingRecord = existing.first {
+                    let needsUpdate = (existingRecord.firstName == nil || existingRecord.firstName?.isEmpty == true) && firstName != nil ||
+                                      (existingRecord.lastName == nil || existingRecord.lastName?.isEmpty == true) && lastName != nil
+                    
+                    if needsUpdate {
+                        var updateData: [String: String?] = [:]
+                        if (existingRecord.firstName == nil || existingRecord.firstName?.isEmpty == true) && firstName != nil {
+                            updateData["first_name"] = firstName
+                        }
+                        if (existingRecord.lastName == nil || existingRecord.lastName?.isEmpty == true) && lastName != nil {
+                            updateData["last_name"] = lastName
+                        }
+                        
+                        if !updateData.isEmpty {
+                            _ = try await SupabaseManager.shared.client
+                                .from("user_subscriptions")
+                                .update(updateData)
+                                .eq("user_id", value: userId)
+                                .execute()
+                            
+                        }
+                    }
+                }
+            }
+        } catch {
+            print("❌ Failed to ensure user_subscriptions record: \(error)")
+            // Don't throw - this is a background operation
+        }
+    }
+    
     // MARK: - Fetch User Subscription
     func fetchSubscriptionStatus() async -> UserSubscription? {
         do {
-            print("🔍 Fetching subscription status...")
             let session = try await SupabaseManager.shared.client.auth.session
             let userId = session.user.id.uuidString
-            print("✅ User ID: \(userId)")
             
             let subscriptions: [UserSubscription] = try await SupabaseManager.shared.client
                 .from("user_subscriptions")
@@ -33,13 +137,6 @@ class SubscriptionService: ObservableObject {
                 .limit(1)
                 .execute()
                 .value
-            
-            print("📊 Found \(subscriptions.count) subscription(s)")
-            
-            if let subscription = subscriptions.first {
-                print("✅ Subscription status: \(subscription.status)")
-                print("📅 Current period end: \(subscription.currentPeriodEnd ?? "none")")
-            }
             
             await MainActor.run {
                 self.currentSubscription = subscriptions.first
@@ -57,18 +154,13 @@ class SubscriptionService: ObservableObject {
     
     // MARK: - Create Checkout Session
     func createCheckoutSession() async throws -> URL {
-        print("🔧 Getting function URL...")
         guard let functionURL = getFunctionURL(functionName: "create-checkout-session") else {
             print("❌ Failed to get function URL")
             throw SubscriptionError.invalidConfiguration
         }
         
-        print("✅ Function URL: \(functionURL)")
-        
-        print("🔐 Getting user session...")
         let session = try await SupabaseManager.shared.client.auth.session
         let userId = session.user.id.uuidString
-        print("✅ User ID: \(userId)")
         
         var request = URLRequest(url: functionURL)
         request.httpMethod = "POST"
@@ -81,23 +173,13 @@ class SubscriptionService: ObservableObject {
             "price_id": "price_1SMViRLKbK8V5YM1xkjiJfnz"
         ]
         
-        print("📤 Request body: \(body)")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        print("🚀 Sending request to Edge Function...")
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             print("❌ Invalid response type")
             throw SubscriptionError.networkError
-        }
-        
-        print("📡 Edge Function response status: \(httpResponse.statusCode)")
-        
-        // Log response data for debugging
-        if let responseString = String(data: data, encoding: .utf8) {
-            print("📄 Response data: \(responseString)")
         }
         
         guard httpResponse.statusCode == 200 else {
@@ -110,11 +192,8 @@ class SubscriptionService: ObservableObject {
             throw SubscriptionError.invalidResponse
         }
         
-        print("✅ Parsed JSON: \(json)")
-        
         guard let checkoutURLString = json["url"] as? String else {
             print("❌ 'url' key not found in response")
-            print("Available keys: \(json.keys)")
             throw SubscriptionError.invalidResponse
         }
         
@@ -163,8 +242,6 @@ class SubscriptionService: ObservableObject {
     
     // MARK: - Get Billing Portal URL
     func getBillingPortalURL() async throws -> URL {
-        print("🔧 Getting billing portal URL...")
-        
         // Make sure we have a subscription
         await fetchSubscriptionStatus()
         
@@ -178,16 +255,10 @@ class SubscriptionService: ObservableObject {
             throw SubscriptionError.noActiveSubscription
         }
         
-        print("✅ Have subscription: \(subscription.status)")
-        print("✅ Customer ID: \(stripeCustomerId)")
-        
         guard let functionURL = getFunctionURL(functionName: "create-billing-portal-session") else {
             print("❌ Failed to get function URL")
             throw SubscriptionError.invalidConfiguration
         }
-        
-        print("✅ Function URL: \(functionURL)")
-        print("📋 Customer ID: \(stripeCustomerId)")
         
         let session = try await SupabaseManager.shared.client.auth.session
         
@@ -200,19 +271,11 @@ class SubscriptionService: ObservableObject {
         let body = ["customer_id": stripeCustomerId]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
-        print("🚀 Sending request to Edge Function...")
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             print("❌ Invalid response type")
             throw SubscriptionError.networkError
-        }
-        
-        print("📡 Edge Function response status: \(httpResponse.statusCode)")
-        
-        // Log response data for debugging
-        if let responseString = String(data: data, encoding: .utf8) {
-            print("📄 Response data: \(responseString)")
         }
         
         guard httpResponse.statusCode == 200 else {
@@ -225,15 +288,10 @@ class SubscriptionService: ObservableObject {
             throw SubscriptionError.invalidResponse
         }
         
-        print("✅ Parsed JSON: \(json)")
-        
         guard let urlString = json["url"] as? String else {
             print("❌ 'url' key not found in response")
-            print("Available keys: \(json.keys)")
             throw SubscriptionError.invalidResponse
         }
-        
-        print("✅ Portal URL: \(urlString)")
         
         guard let url = URL(string: urlString) else {
             print("❌ Invalid URL string: \(urlString)")

@@ -15,14 +15,28 @@ struct TheDailyDevApp: App {
         WindowGroup {
             ContentView()
                 .onOpenURL { url in
-                    handleStripeReturn(url: url)
+                    Task {
+                        await handleDeepLink(url: url)
+                    }
                 }
         }
     }
     
-    // MARK: - Handle Stripe Return
-    private func handleStripeReturn(url: URL) {
+    // MARK: - Handle Deep Links
+    private func handleDeepLink(url: URL) async {
         print("🔗 Received deep link: \(url)")
+        print("   - scheme: \(url.scheme ?? "nil")")
+        print("   - host: \(url.host ?? "nil")")
+        print("   - path: \(url.path)")
+        
+        // Handle Supabase OAuth redirects
+        if url.scheme == "com.supabase.thedailydev" && url.host == "oauth-callback" {
+            print("🔐 OAuth callback received: \(url.absoluteString)")
+            await AuthManager.shared.handleOAuthCallback(url: url)
+            return
+        }
+        
+        // Handle Stripe return
         guard url.scheme == "thedailydev" else {
             print("❌ Invalid scheme: \(url.scheme ?? "nil")")
             return
@@ -34,14 +48,12 @@ struct TheDailyDevApp: App {
         switch host {
         case "subscription-success":
             print("✅ Subscription successful - fetching status...")
-            Task {
-                let subscription = await subscriptionService.fetchSubscriptionStatus()
-                print("📊 Fetched subscription: \(subscription?.status ?? "none")")
-                if subscription != nil {
-                    print("✅ Active subscription found!")
-                } else {
-                    print("⚠️ No subscription found - webhook may not have processed yet")
-                }
+            let subscription = await subscriptionService.fetchSubscriptionStatus()
+            print("📊 Fetched subscription: \(subscription?.status ?? "none")")
+            if subscription != nil {
+                print("✅ Active subscription found!")
+            } else {
+                print("⚠️ No subscription found - webhook may not have processed yet")
             }
         case "subscription-cancel":
             print("❌ Subscription canceled")

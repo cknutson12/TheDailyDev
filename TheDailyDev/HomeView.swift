@@ -19,20 +19,22 @@ struct HomeView: View {
     @State private var isLoadingInitialData = true
 
     var body: some View {
-        Group {
+        ZStack {
+            Color.theme.background.ignoresSafeArea()
             if isLoadingInitialData {
                 // Loading state
                 VStack(spacing: 20) {
                     ProgressView()
                         .scaleEffect(1.5)
                     Text("Loading your data...")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.theme.textSecondary)
                 }
             } else {
                 // Main content
                 mainContent
             }
         }
+        .preferredColorScheme(.dark)
         .task {
             await loadInitialData()
         }
@@ -46,33 +48,35 @@ struct HomeView: View {
             VStack(spacing: 16) {
                 Image(systemName: "brain.head.profile")
                     .font(.system(size: 60))
-                    .foregroundColor(.blue)
+                    .foregroundColor(Color.theme.accentGreen)
                 
                 VStack(spacing: 8) {
                     if !userName.isEmpty {
                         Text("Welcome, \(userName)!")
                             .font(.title)
                             .bold()
+                            .foregroundColor(.white)
                     } else {
                         Text("Welcome to The Daily Dev!")
                             .font(.title)
                             .bold()
+                            .foregroundColor(.white)
                     }
                     
                     if currentStreak > 0 {
                         HStack {
                             Image(systemName: "flame.fill")
-                                .foregroundColor(.orange)
+                                .foregroundColor(Color.theme.stateCorrect)
                             Text("\(currentStreak) day streak!")
                                 .font(.headline)
-                                .foregroundColor(.orange)
+                                .foregroundColor(Color.theme.stateCorrect)
                         }
                     }
                 }
                 
                 Text("Challenge your system design knowledge with daily questions")
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color.theme.textSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
@@ -85,20 +89,25 @@ struct HomeView: View {
                     VStack(spacing: 12) {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 40))
-                            .foregroundColor(.green)
+                            .foregroundColor(Color.theme.stateCorrect)
                         
                         Text("Question Completed!")
                             .font(.title2)
                             .bold()
+                            .foregroundColor(.white)
                         
                         Text("Check back tomorrow for a new challenge")
                             .font(.body)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.theme.textSecondary)
                             .multilineTextAlignment(.center)
                     }
                     .padding()
-                    .background(Color.green.opacity(0.1))
-                    .cornerRadius(16)
+                    .background(Theme.Colors.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
+                            .stroke(Theme.Colors.border, lineWidth: 1)
+                    )
+                    .cornerRadius(Theme.Metrics.cornerRadius)
                 } else if let subscription = subscriptionService.currentSubscription, subscription.canAccessQuestions {
                     // User has access - show play button
                     Button(action: {
@@ -110,28 +119,30 @@ struct HomeView: View {
                             Text("Answer Today's System Design Question")
                                 .font(.headline)
                         }
-                        .foregroundColor(.white)
-                        .padding()
+                        .foregroundColor(.black)
+                        .padding(.vertical, 14)
                         .frame(maxWidth: .infinity)
-                        .background(Color.blue)
-                        .cornerRadius(12)
                     }
+                    .buttonStyle(PrimaryButtonStyle())
                     .padding(.horizontal)
                 } else {
                     // User needs subscription - show locked state
                     VStack(spacing: 16) {
                         Image(systemName: "crown.fill")
                             .font(.system(size: 50))
-                            .foregroundColor(.yellow)
+                            .foregroundColor(Color.theme.accentGreen)
                         
                         Text("Subscription Required")
                             .font(.title2)
                             .bold()
+                            .foregroundColor(.white)
                         
                         Text(subscriptionService.currentSubscription?.accessStatusMessage ?? "Activate Subscription to View Today's Questions")
                             .font(.body)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.theme.textSecondary)
                             .multilineTextAlignment(.center)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
                             .padding(.horizontal)
                         
                         Button(action: {
@@ -143,17 +154,20 @@ struct HomeView: View {
                                 Text("Subscribe Now")
                                     .font(.headline)
                             }
-                            .foregroundColor(.white)
-                            .padding()
+                            .foregroundColor(.black)
+                            .padding(.vertical, 14)
                             .frame(maxWidth: .infinity)
-                            .background(Color.yellow)
-                            .cornerRadius(12)
                         }
+                        .buttonStyle(PrimaryButtonStyle())
                         .padding(.horizontal)
                     }
                     .padding()
-                    .background(Color.yellow.opacity(0.1))
-                    .cornerRadius(16)
+                    .background(Theme.Colors.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
+                            .stroke(Theme.Colors.border, lineWidth: 1)
+                    )
+                    .cornerRadius(Theme.Metrics.cornerRadius)
                     .padding(.horizontal)
                 }
             }
@@ -167,6 +181,7 @@ struct HomeView: View {
                     Image(systemName: "person.circle.fill")
                         .font(.title2)
                 }
+                .accessibilityIdentifier("ProfileButton")
             }
         }
         .sheet(isPresented: $showingQuestion) {
@@ -199,7 +214,7 @@ struct HomeView: View {
     
     private func loadInitialData() async {
         // Load subscription status
-        await subscriptionService.fetchSubscriptionStatus()
+        _ = await subscriptionService.fetchSubscriptionStatus()
         
         // Load user display name (prioritizes profile name over email)
         let displayName = await QuestionService.shared.getUserDisplayName()

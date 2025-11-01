@@ -147,10 +147,10 @@ struct CategoryPerformanceRow: View {
     
     private var percentageColor: Color {
         switch performance.percentage {
-        case 80...100: return .green
-        case 60..<80: return .blue
+        case 80...100: return Theme.Colors.stateCorrect
+        case 60..<80: return Theme.Colors.subtleBlue
         case 40..<60: return .orange
-        default: return .red
+        default: return Theme.Colors.stateIncorrect
         }
     }
 }

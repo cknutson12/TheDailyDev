@@ -31,12 +31,12 @@ struct MatchingQuestionView: View {
     var allItemsPlaced: Bool {
         matches.count == draggableItems.count
     }
-
-    private var totalPairs: Int {
+    
+    var totalPairs: Int {
         question.content.correctMatches?.count ?? 0
     }
 
-    private var correctPairsCount: Int {
+    var correctPairsCount: Int {
         let correctMatches = question.content.correctMatches ?? []
         return correctMatches.reduce(0) { count, pair in
             count + ((matches[pair.targetId] == pair.sourceId) ? 1 : 0)
@@ -51,10 +51,11 @@ struct MatchingQuestionView: View {
                     Text(question.title)
                         .font(.title2)
                         .bold()
+                        .foregroundColor(.white)
                     
                     Text(question.content.question)
                         .font(.body)
-                        .foregroundColor(.primary)
+                        .foregroundColor(Color.theme.textSecondary)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
                     
@@ -75,8 +76,12 @@ struct MatchingQuestionView: View {
                             .font(.caption)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color.blue.opacity(0.2))
-                            .foregroundColor(.blue)
+                            .background(Theme.Colors.surface)
+                            .foregroundColor(.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Theme.Colors.border, lineWidth: 1)
+                            )
                             .cornerRadius(8)
                     }
                     
@@ -84,8 +89,12 @@ struct MatchingQuestionView: View {
                         .font(.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Color.orange.opacity(0.2))
-                        .foregroundColor(.orange)
+                        .background(Theme.Colors.surface)
+                        .foregroundColor(.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Theme.Colors.border, lineWidth: 1)
+                        )
                         .cornerRadius(8)
                 }
                 
@@ -93,7 +102,7 @@ struct MatchingQuestionView: View {
                 if !showResult {
                     Text("Drag items to match them with their descriptions")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.theme.textSecondary)
                         .italic()
                 }
                 
@@ -102,7 +111,7 @@ struct MatchingQuestionView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Drag These:")
                             .font(.headline)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
                         
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 12) {
@@ -113,16 +122,14 @@ struct MatchingQuestionView: View {
                             }
                         }
                     }
-                    .padding()
-                    .background(Color.gray.opacity(0.05))
-                    .cornerRadius(12)
+                    .cardContainer()
                 }
                 
                 // Drop Zones Section
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Match To:")
                         .font(.headline)
-                        .foregroundColor(.primary)
+                        .foregroundColor(.white)
                     
                     ForEach(targetItems) { target in
                         DropZoneView(
@@ -143,20 +150,13 @@ struct MatchingQuestionView: View {
                 // Submit Button
                 if !showResult {
                     Button(action: submitAnswer) {
-                        HStack {
-                            if allItemsPlaced {
-                                Text("Submit Answer")
-                            } else {
-                                Text("Place all items to submit (\(matches.count)/\(draggableItems.count) placed)")
-                            }
+                        if allItemsPlaced {
+                            Text("Submit Answer").bold()
+                        } else {
+                            Text("Place all items to submit (\(matches.count)/\(draggableItems.count) placed)")
                         }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(allItemsPlaced ? Color.blue : Color.gray)
-                        .cornerRadius(12)
                     }
+                    .buttonStyle(PrimaryButtonStyle())
                     .disabled(!allItemsPlaced)
                 }
                 
@@ -165,30 +165,39 @@ struct MatchingQuestionView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                .foregroundColor(isCorrect ? .green : .red)
+                                .foregroundColor(isCorrect ? Theme.Colors.stateCorrect : Theme.Colors.stateIncorrect)
                                 .font(.title2)
                             
                             Text(isCorrect ? "Correct!" : "Partially Correct")
                                 .font(.headline)
-                                .foregroundColor(isCorrect ? .green : .red)
+                                .foregroundColor(isCorrect ? Theme.Colors.stateCorrect : Theme.Colors.stateIncorrect)
                         }
                         
                         // Show X/Y matches correct
                         Text("\(correctPairsCount)/\(totalPairs) matches correct")
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.theme.textSecondary)
+                            .padding(.bottom, 4)
                         
                         if let explanation = question.explanation {
                             Text(explanation)
                                 .font(.body)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.theme.textSecondary)
                                 .padding()
-                                .background(Color.gray.opacity(0.1))
+                                .background(Theme.Colors.surface)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Theme.Colors.border, lineWidth: 1)
+                                )
                                 .cornerRadius(8)
                         }
                     }
                     .padding()
-                    .background(Color.gray.opacity(0.05))
+                    .background(Theme.Colors.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Theme.Colors.border, lineWidth: 1)
+                    )
                     .cornerRadius(12)
                 }
                 
@@ -196,6 +205,8 @@ struct MatchingQuestionView: View {
             }
             .padding()
         }
+        .background(Color.theme.background)
+        .preferredColorScheme(.dark)
     }
     
     // MARK: - Helper Functions

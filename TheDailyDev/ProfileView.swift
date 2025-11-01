@@ -12,8 +12,6 @@ struct ProfileView: View {
     @Binding var isLoggedIn: Bool
     @Environment(\.dismiss) private var dismiss
     @StateObject private var subscriptionService = SubscriptionService.shared
-    @State private var isSigningOut = false
-    @State private var signOutError: String?
     @State private var progressHistory: [UserProgressWithQuestion] = []
     @State private var isLoadingHistory = false
     @State private var userName: String = ""
@@ -23,29 +21,33 @@ struct ProfileView: View {
     @State private var showingSubscriptionBenefits = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // User Stats Header
-                    if !userName.isEmpty {
-                        Text("\(userName) Stats")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .minimumScaleFactor(0.5)
-                            .lineLimit(1)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 20)
-                    }
-                    
-                    // Subscription Status
-                    if let subscription = subscriptionService.currentSubscription {
-                        if subscription.isActive {
+        ZStack {
+            Color.theme.background.ignoresSafeArea()
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // User Stats Header
+                        if !userName.isEmpty {
+                            Text("\(userName) Stats")
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                                .minimumScaleFactor(0.5)
+                                .lineLimit(1)
+                                .padding(.horizontal, 20)
+                                .padding(.top, 16)
+                                .foregroundColor(.white)
+                        }
+                        
+                        // Subscription Status
+                        if let subscription = subscriptionService.currentSubscription, subscription.isActive {
                             // Show stats for subscribers
                             if isLoadingHistory {
                                 VStack {
                                     ProgressView("Loading your progress...")
                                         .frame(maxWidth: .infinity, maxHeight: 200)
                                 }
+                                .cardContainer()
+                                .padding(.horizontal)
                             } else {
                                 ContributionsTracker(progressHistory: progressHistory)
                                     .padding(.horizontal)
@@ -56,6 +58,8 @@ struct ProfileView: View {
                                     ProgressView("Loading category performance...")
                                         .frame(maxWidth: .infinity, maxHeight: 100)
                                 }
+                                .cardContainer()
+                                .padding(.horizontal)
                             } else {
                                 CategoryPerformanceView(categoryPerformances: categoryPerformances)
                                     .padding(.horizontal)
@@ -65,93 +69,41 @@ struct ProfileView: View {
                             VStack(spacing: 16) {
                                 Image(systemName: "crown.fill")
                                     .font(.system(size: 50))
-                                    .foregroundColor(.yellow)
+                                    .foregroundColor(Color.theme.accentGreen)
                                 
                                 Text("Upgrade to See Question Stats")
                                     .font(.title2)
                                     .bold()
+                                    .foregroundColor(.white)
                                 
                                 Text("Unlock detailed analytics, question history, and performance tracking with a subscription")
                                     .font(.body)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(Color.theme.textSecondary)
                                     .multilineTextAlignment(.center)
                                 
                                 Button(action: {
                                     showingSubscriptionBenefits = true
                                 }) {
-                                    HStack {
-                                        Image(systemName: "crown.fill")
-                                        Text("Subscribe Now")
-                                    }
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                    .padding()
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color.yellow)
-                                    .cornerRadius(12)
+                                    Text("See Benefits")
+                                        .bold()
                                 }
+                                .buttonStyle(PrimaryButtonStyle())
                             }
                             .padding()
-                            .background(Color.yellow.opacity(0.1))
-                            .cornerRadius(16)
+                            .background(Theme.Colors.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
+                                    .stroke(Theme.Colors.border, lineWidth: 1)
+                            )
+                            .cornerRadius(Theme.Metrics.cornerRadius)
                             .padding(.horizontal)
                         }
-                    } else {
-                        // No subscription - show benefits
-                        SubscriptionBenefitsView(
-                            onSubscribe: {
-                                Task {
-                                    await handleSubscription()
-                                }
-                            }
-                        )
-                        .padding(.horizontal)
                     }
+                    .padding(.bottom, 16)
                 }
-                .padding(.bottom, 20)
             }
-            
-            // Sign Out Button at Bottom
-            VStack(spacing: 12) {
-                if let error = signOutError {
-                    Text(error)
-                        .foregroundColor(.red)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-
-                Button(role: .destructive) {
-                    Task { await signOut() }
-                } label: {
-                    if isSigningOut {
-                        HStack {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                .scaleEffect(0.8)
-                            Text("Signing Out...")
-                        }
-                        .font(.headline)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.red)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                    } else {
-                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                            .font(.headline)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.red)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                    }
-                }
-                .disabled(isSigningOut)
-                .padding(.horizontal)
-                .padding(.bottom, 20)
-            }
-            .background(Color(UIColor.systemBackground))
         }
+        .preferredColorScheme(.dark)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -161,7 +113,9 @@ struct ProfileView: View {
                 }) {
                     Image(systemName: "gearshape.fill")
                         .font(.title3)
+                        .foregroundColor(.white)
                 }
+                .accessibilityIdentifier("SettingsButton")
             }
         }
         .sheet(isPresented: $showingSubscriptionBenefits) {
@@ -175,9 +129,9 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showingSubscriptionSettings) {
             if let subscription = subscriptionService.currentSubscription {
-                SubscriptionSettingsView(subscription: .constant(subscription))
+                SubscriptionSettingsView(subscription: .constant(subscription), isLoggedIn: $isLoggedIn)
             } else {
-                SubscriptionSettingsView(subscription: .constant(nil))
+                SubscriptionSettingsView(subscription: .constant(nil), isLoggedIn: $isLoggedIn)
             }
         }
         .onAppear {
@@ -202,7 +156,7 @@ struct ProfileView: View {
     // MARK: - Load User Data
     private func loadUserData() async {
         // Load subscription status
-        await subscriptionService.fetchSubscriptionStatus()
+        _ = await subscriptionService.fetchSubscriptionStatus()
         
         // Load user display name (prioritizes profile name over email)
         let displayName = await QuestionService.shared.getUserDisplayName()
@@ -241,35 +195,5 @@ struct ProfileView: View {
         }
     }
     
-    // MARK: - Sign Out Function
-    private func signOut() async {
-        print("🔄 Starting sign out process...")
-        isSigningOut = true
-        signOutError = nil
-        
-        do {
-            // Sign out from Supabase
-            print("🔐 Calling Supabase sign out...")
-            try await SupabaseManager.shared.client.auth.signOut()
-            print("✅ Supabase sign out successful")
-            
-            // Update local state to return to login screen
-            await MainActor.run {
-                print("🔄 Updating UI state...")
-                isLoggedIn = false
-                isSigningOut = false
-                print("📱 Dismissing ProfileView...")
-                // Dismiss the ProfileView to return to HomeView, which will then show LoginView
-                dismiss()
-                print("✅ Sign out process completed")
-            }
-        } catch {
-            print("❌ Sign out failed: \(error.localizedDescription)")
-            await MainActor.run {
-                signOutError = "Sign out failed: \(error.localizedDescription)"
-                isSigningOut = false
-            }
-        }
-    }
 }
 

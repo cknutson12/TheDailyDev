@@ -20,10 +20,11 @@ struct MultipleChoiceQuestionView: View {
                 Text(question.title)
                     .font(.title2)
                     .bold()
+                    .foregroundColor(.white)
                 
                 Text(question.content.question)
                     .font(.body)
-                    .foregroundColor(.primary)
+                    .foregroundColor(Color.theme.textSecondary)
                     .lineLimit(nil) // Allow unlimited lines
                     .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion
                 
@@ -44,8 +45,12 @@ struct MultipleChoiceQuestionView: View {
                         .font(.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Color.blue.opacity(0.2))
-                        .foregroundColor(.blue)
+                        .background(Theme.Colors.surface)
+                        .foregroundColor(.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Theme.Colors.border, lineWidth: 1)
+                        )
                         .cornerRadius(8)
                 }
                 
@@ -53,8 +58,12 @@ struct MultipleChoiceQuestionView: View {
                     .font(.caption)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.2))
-                    .foregroundColor(.orange)
+                    .background(Theme.Colors.surface)
+                    .foregroundColor(.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Theme.Colors.border, lineWidth: 1)
+                    )
                     .cornerRadius(8)
             }
             
@@ -78,14 +87,9 @@ struct MultipleChoiceQuestionView: View {
             // Submit Button
             if selectedOptionId != nil && !showResult {
                 Button(action: submitAnswer) {
-                    Text("Submit Answer")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .cornerRadius(12)
+                    Text("Submit Answer").bold()
                 }
+                .buttonStyle(PrimaryButtonStyle())
             }
             
             // Result
@@ -93,45 +97,40 @@ struct MultipleChoiceQuestionView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundColor(isCorrect ? .green : .red)
+                            .foregroundColor(isCorrect ? Theme.Colors.stateCorrect : Theme.Colors.stateIncorrect)
                             .font(.title2)
                         
                         Text(isCorrect ? "Correct!" : "Incorrect")
                             .font(.headline)
-                            .foregroundColor(isCorrect ? .green : .red)
+                            .foregroundColor(isCorrect ? Theme.Colors.stateCorrect : Theme.Colors.stateIncorrect)
                     }
                     
                     if let explanation = question.explanation {
-                        //  Simple adaptive text
                         AdaptiveText(explanation, maxFontSize: 16, minFontSize: 12)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.theme.textSecondary)
                             .padding()
-                            .background(Color.gray.opacity(0.1))
+                            .background(Theme.Colors.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Theme.Colors.border, lineWidth: 1)
+                            )
                             .cornerRadius(8)
-                        
-                        // Another option to try based on feedback: Expandable text (uncomment to use)
-                        // ExpandableText(explanation, maxLines: 3)
-                        //     .foregroundColor(.secondary)
-                        //     .padding()
-                        //     .background(Color.gray.opacity(0.1))
-                        //     .cornerRadius(8)
-                        
-                        // Scrollable text for very long content (uncomment to use)
-                        // ScrollableText(explanation, maxHeight: 150)
-                        //     .foregroundColor(.secondary)
-                        //     .padding()
-                        //     .background(Color.gray.opacity(0.1))
-                        //     .cornerRadius(8)
                     }
                 }
                 .padding()
-                .background(Color.gray.opacity(0.05))
+                .background(Theme.Colors.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Theme.Colors.border, lineWidth: 1)
+                )
                 .cornerRadius(12)
             }
             
             Spacer()
         }
         .padding()
+        .background(Color.theme.background)
+        .preferredColorScheme(.dark)
     }
     
     private func submitAnswer() {
@@ -179,56 +178,49 @@ struct OptionButton: View {
                 
                 Text(option.text)
                     .font(.body)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                     .multilineTextAlignment(.leading)
-                    .lineLimit(nil) // Allow unlimited lines
-                    .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
                 
                 Spacer()
                 
                 if isCorrect {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                        .foregroundColor(Theme.Colors.stateCorrect)
                 } else if isIncorrect {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.red)
+                        .foregroundColor(Theme.Colors.stateIncorrect)
                 }
             }
             .padding()
-            .background(buttonBackgroundColor)
-            .cornerRadius(12)
+            .background(Theme.Colors.surface)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(borderColor, lineWidth: 2)
             )
+            .cornerRadius(12)
         }
         .disabled(isCorrect || isIncorrect)
     }
     
     private var backgroundColor: Color {
-        if isCorrect { return .green }
-        if isIncorrect { return .red }
-        if isSelected { return .blue }
-        return .gray.opacity(0.3)
+        if isCorrect { return Theme.Colors.stateCorrect }
+        if isIncorrect { return Theme.Colors.stateIncorrect }
+        if isSelected { return Theme.Colors.accentGreen }
+        return Theme.Colors.surface
     }
     
     private var textColor: Color {
-        if isCorrect || isIncorrect || isSelected { return .white }
-        return .primary
-    }
-    
-    private var buttonBackgroundColor: Color {
-        if isCorrect { return .green.opacity(0.1) }
-        if isIncorrect { return .red.opacity(0.1) }
-        if isSelected { return .blue.opacity(0.1) }
-        return .gray.opacity(0.05)
+        if isCorrect || isIncorrect || isSelected { return .black }
+        return .white
     }
     
     private var borderColor: Color {
-        if isCorrect { return .green }
-        if isIncorrect { return .red }
-        if isSelected { return .blue }
-        return .gray.opacity(0.3)
+        if isSelected { return Theme.Colors.accentGreen }
+        if isCorrect { return Theme.Colors.stateCorrect }
+        if isIncorrect { return Theme.Colors.stateIncorrect }
+        return Theme.Colors.border
     }
 }
 

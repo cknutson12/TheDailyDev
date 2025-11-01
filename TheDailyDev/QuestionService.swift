@@ -12,8 +12,10 @@ class QuestionService: ObservableObject {
     
     // MARK: - Fetch Today's Question
     func fetchTodaysQuestion() async {
-        isLoading = true
-        errorMessage = nil
+        await MainActor.run {
+            isLoading = true
+            errorMessage = nil
+        }
         
         do {
             let response: [DailyChallenge] = try await SupabaseManager.shared.client
@@ -194,11 +196,8 @@ class QuestionService: ObservableObject {
                 return subscription.fullName
             }
             
-            // Fallback to user metadata name
-            if let metadataName = session.user.userMetadata["name"] as? String,
-               !metadataName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return metadataName.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
+            // Fallback to user metadata name - skipping for now as AnyJSON casting is complex
+            // TODO: Implement proper AnyJSON to String extraction
             
             // Final fallback to email
             return session.user.email ?? "User"

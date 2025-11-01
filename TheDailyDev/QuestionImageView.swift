@@ -200,7 +200,7 @@ struct QuestionImageGallery: View {
                                         .cornerRadius(8)
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 8)
-                                                .stroke(selectedIndex == index ? Color.blue : Color.clear, lineWidth: 2)
+                                                .stroke(selectedIndex == index ? Theme.Colors.subtleBlue : Color.clear, lineWidth: 2)
                                         )
                                         .onTapGesture {
                                             withAnimation(.easeInOut(duration: 0.2)) {

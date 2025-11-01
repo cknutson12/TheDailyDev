@@ -57,8 +57,8 @@ struct ContributionsTracker: View {
             
             // Legend
             HStack(spacing: 12) {
-                LegendItem(color: .green, text: "Correct")
-                LegendItem(color: .red, text: "Incorrect")
+                LegendItem(color: Theme.Colors.stateCorrect, text: "Correct")
+                LegendItem(color: Theme.Colors.stateIncorrect, text: "Incorrect")
                 LegendItem(color: .gray.opacity(0.3), text: "No data")
             }
             .padding(.bottom, 4)
@@ -348,7 +348,7 @@ struct ContributionSquare: View {
         }
         
         if let isCorrect = progress.isCorrect {
-            return isCorrect ? .green : .red
+            return isCorrect ? Theme.Colors.stateCorrect : Theme.Colors.stateIncorrect
         }
         
         return .gray.opacity(0.3)
@@ -520,7 +520,7 @@ struct QuestionReviewView: View {
                                     }
                                 }
                                 .padding()
-                                .background(Color.blue.opacity(0.05))
+                                .background(Theme.Colors.subtleBlue.opacity(0.05))
                                 .cornerRadius(8)
                             }
                         } else {

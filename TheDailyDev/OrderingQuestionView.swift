@@ -37,10 +37,11 @@ struct OrderingQuestionView: View {
                 Text(question.title)
                     .font(.title2)
                     .bold()
+                    .foregroundColor(.white)
                 
                 Text(question.content.question)
                     .font(.body)
-                    .foregroundColor(.primary)
+                    .foregroundColor(Color.theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 
                 if let imageUrl = question.content.imageUrl, !imageUrl.isEmpty {
@@ -57,28 +58,27 @@ struct OrderingQuestionView: View {
                 ForEach(items, id: \.id) { item in
                     HStack {
                         Image(systemName: "line.3.horizontal")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.theme.textSecondary)
                         Text(item.text)
                             .font(.body)
+                            .foregroundColor(.white)
                         Spacer()
                     }
+                    .listRowBackground(Theme.Colors.surface)
                 }
                 .onMove(perform: move)
             }
             .environment(\.editMode, .constant(.active))
-            .frame(maxHeight: 350)
+            .scrollContentBackground(.hidden)
+            .background(Theme.Colors.surface)
+            .cornerRadius(12)
             
             // Submit button
             if !showResult {
                 Button(action: submitAnswer) {
-                    Text("Submit Order")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .cornerRadius(12)
+                    Text("Submit Order").bold()
                 }
+                .buttonStyle(PrimaryButtonStyle())
             }
             
             // Result
@@ -86,34 +86,44 @@ struct OrderingQuestionView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundColor(isCorrect ? .green : .red)
+                            .foregroundColor(isCorrect ? Theme.Colors.stateCorrect : Theme.Colors.stateIncorrect)
                             .font(.title2)
                         Text(isCorrect ? "Correct!" : "Partially Correct")
                             .font(.headline)
-                            .foregroundColor(isCorrect ? .green : .red)
+                            .foregroundColor(isCorrect ? Theme.Colors.stateCorrect : Theme.Colors.stateIncorrect)
                     }
                     
                     Text("\(correctPositionsCount)/\(correctOrderIds.count) in the correct position")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.theme.textSecondary)
                     
                     if let explanation = question.explanation {
                         Text(explanation)
                             .font(.body)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.theme.textSecondary)
                             .padding()
-                            .background(Color.gray.opacity(0.1))
+                            .background(Theme.Colors.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Theme.Colors.border, lineWidth: 1)
+                            )
                             .cornerRadius(8)
                     }
                 }
                 .padding()
-                .background(Color.gray.opacity(0.05))
+                .background(Theme.Colors.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Theme.Colors.border, lineWidth: 1)
+                )
                 .cornerRadius(12)
             }
             
             Spacer()
         }
         .padding()
+        .background(Color.theme.background)
+        .preferredColorScheme(.dark)
     }
     
     private func move(from source: IndexSet, to destination: Int) {
