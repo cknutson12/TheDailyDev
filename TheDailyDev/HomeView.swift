@@ -103,9 +103,10 @@ struct HomeView: View {
             
             // Welcome Section
             VStack(spacing: 16) {
-                Image(systemName: "brain.head.profile")
-                    .font(.system(size: 60))
-                    .foregroundColor(Color.theme.accentGreen)
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 120, height: 120)
                 
                 VStack(spacing: 8) {
                     if !userName.isEmpty {
