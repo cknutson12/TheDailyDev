@@ -4,7 +4,7 @@ import SwiftUI
 enum Theme {
     enum Colors {
         static let background = Color.black // #000000
-        static let surface = Color(red: 0.039, green: 0.039, blue: 0.039) // ~#0A0A0A
+        static let surface = Color(red: 0.078, green: 0.078, blue: 0.078) // ~#141414 - slightly lighter for better visibility
         static let border = Color(red: 0.122, green: 0.122, blue: 0.122) // ~#1F1F1F
         static let textPrimary = Color.white
         static let textSecondary = Color(red: 0.607, green: 0.639, blue: 0.686) // ~#9BA3AF

@@ -228,7 +228,6 @@ struct OptionButton: View {
     let sampleQuestion = Question(
         id: UUID(),
         title: "Load Balancing Strategy",
-        questionType: "multiple_choice",
         content: QuestionContent(
             question: "Which load balancing algorithm distributes requests evenly across all servers without considering server capacity?",
             options: [
@@ -249,8 +248,9 @@ struct OptionButton: View {
         explanation: "Round Robin distributes requests in a circular fashion, treating all servers equally regardless of their capacity or current load.",
         difficultyLevel: 2,
         category: "Load Balancing",
-        scheduledDate: nil,
-        createdAt: ""
+        createdAt: "",
+        questionType: nil,
+        scheduledDate: nil
     )
     
     return MultipleChoiceQuestionView(question: sampleQuestion)

@@ -8,7 +8,48 @@ class QuestionService: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     
+    // Cache management - different durations for different data types
+    private var cachedProgressHistory: [UserProgressWithQuestion]?
+    private var progressHistoryFetchTime: Date?
+    private let progressHistoryCacheTimeout: TimeInterval = 86400 // 24 hours
+    
+    private var cachedHasAnsweredToday: Bool?
+    private var hasAnsweredTodayFetchTime: Date?
+    private var lastCheckedDate: String? // Track which day we checked
+    
+    private var cachedHasAnsweredAny: Bool?
+    // No timeout - once true, always true
+    
+    private var cachedStreak: Int?
+    private var streakFetchTime: Date?
+    private var streakCachedDate: String? // Track which day streak was calculated
+    // Cache until midnight or user answers (date-aware)
+    
+    private var cachedDisplayName: String?
+    private var displayNameFetchTime: Date?
+    private let displayNameCacheTimeout: TimeInterval = 86400 // 24 hours
+    
     private init() {}
+    
+    // MARK: - Cache Invalidation
+    /// Call this after user answers a question to refresh stats
+    func invalidateProgressCache() {
+        progressHistoryFetchTime = nil
+        cachedProgressHistory = nil
+        cachedHasAnsweredToday = nil
+        hasAnsweredTodayFetchTime = nil
+        cachedStreak = nil
+        streakFetchTime = nil
+        streakCachedDate = nil
+        print("🔄 Progress cache invalidated - stats will refresh")
+    }
+    
+    /// Invalidate question cache - call when you want to force refresh today's question
+    func invalidateQuestionCache() {
+        todaysQuestion = nil
+        errorMessage = nil
+        print("🔄 Question cache invalidated - will fetch fresh question")
+    }
     
     // MARK: - Fetch Today's Question
     func fetchTodaysQuestion() async {
@@ -44,8 +85,54 @@ class QuestionService: ObservableObject {
         }
     }
     
+    // MARK: - Check if User Has Answered Any Question
+    func hasAnsweredAnyQuestion() async -> Bool {
+        // Once true, always true - cache indefinitely
+        if let cached = cachedHasAnsweredAny, cached == true {
+            print("✅ Using cached 'has answered any' (value: true)")
+            return true
+        }
+        
+        do {
+            let session = try await SupabaseManager.shared.client.auth.session
+            let userId = session.user.id
+            
+            // Use count query instead of fetching data
+            let response = try await SupabaseManager.shared.client
+                .from("user_progress")
+                .select("*", head: false, count: .exact)
+                .eq("user_id", value: userId)
+                .limit(1)
+                .execute()
+            
+            let count = response.count ?? 0
+            let hasAnswered = count > 0
+            
+            // Cache the result (especially if true)
+            cachedHasAnsweredAny = hasAnswered
+            print("✅ Checked if user has answered any: \(hasAnswered)")
+            
+            return hasAnswered
+        } catch {
+            print("❌ Failed to check if user has answered: \(error)")
+            return false
+        }
+    }
+    
     // MARK: - Fetch User Progress History
-    func fetchUserProgressHistory() async -> [UserProgressWithQuestion] {
+    func fetchUserProgressHistory(forceRefresh: Bool = false) async -> [UserProgressWithQuestion] {
+        // Check cache first (24-hour cache for history)
+        if !forceRefresh,
+           let cached = cachedProgressHistory,
+           let lastFetch = progressHistoryFetchTime,
+           Date().timeIntervalSince(lastFetch) < progressHistoryCacheTimeout {
+            let age = Int(Date().timeIntervalSince(lastFetch))
+            print("✅ Using cached progress history (age: \(age)s, \(cached.count) records)")
+            return cached
+        }
+        
+        print("🔄 Fetching fresh progress history...")
+        
         do {
             // Get the current authenticated user
             let session = try await SupabaseManager.shared.client.auth.session
@@ -59,10 +146,15 @@ class QuestionService: ObservableObject {
                 .execute()
                 .value
             
+            // Cache the result
+            cachedProgressHistory = response
+            progressHistoryFetchTime = Date()
+            print("✅ Progress history cached (\(response.count) records)")
+            
             return response
         } catch {
             print("❌ Failed to fetch user progress: \(error)")
-            return []
+            return cachedProgressHistory ?? [] // Return cached data if available
         }
     }
     
@@ -177,6 +269,17 @@ class QuestionService: ObservableObject {
     
     // MARK: - Get User Display Name
     func getUserDisplayName() async -> String {
+        // Check display name cache (24-hour cache)
+        if let cached = cachedDisplayName,
+           let lastFetch = displayNameFetchTime,
+           Date().timeIntervalSince(lastFetch) < displayNameCacheTimeout {
+            let age = Int(Date().timeIntervalSince(lastFetch))
+            print("✅ Using cached display name (age: \(age)s)")
+            return cached
+        }
+        
+        print("🔄 Fetching fresh display name...")
+        
         do {
             let session = try await SupabaseManager.shared.client.auth.session
             let userId = session.user.id.uuidString
@@ -191,16 +294,22 @@ class QuestionService: ObservableObject {
                 .execute()
                 .value
             
+            var displayName = "User"
+            
             // Use full name from subscription if available
             if let subscription = subscriptions.first, !subscription.fullName.isEmpty, subscription.fullName != "User" {
-                return subscription.fullName
+                displayName = subscription.fullName
+            } else {
+                // Final fallback to email
+                displayName = session.user.email ?? "User"
             }
             
-            // Fallback to user metadata name - skipping for now as AnyJSON casting is complex
-            // TODO: Implement proper AnyJSON to String extraction
+            // Cache the result
+            cachedDisplayName = displayName
+            displayNameFetchTime = Date()
+            print("✅ Display name cached: \(displayName)")
             
-            // Final fallback to email
-            return session.user.email ?? "User"
+            return displayName
             
         } catch {
             print("❌ Failed to get user display name: \(error)")
@@ -210,6 +319,23 @@ class QuestionService: ObservableObject {
     
     // MARK: - Calculate Streak
     func calculateCurrentStreak() async -> Int {
+        let todayDateString = getCurrentDateString()
+        
+        // Check streak cache (date-aware - valid until midnight)
+        if let cached = cachedStreak,
+           let cachedDate = streakCachedDate,
+           cachedDate == todayDateString {
+            print("✅ Using cached streak (value: \(cached), cached today)")
+            return cached
+        }
+        
+        if let oldDate = streakCachedDate, oldDate != todayDateString {
+            print("🔄 Date changed (\(oldDate) → \(todayDateString)) - recalculating streak...")
+        } else {
+            print("🔄 Calculating fresh streak...")
+        }
+        
+        // Use cached progress history (will use its 24-hour cache)
         let progressHistory = await fetchUserProgressHistory()
         
         // Sort by completion date (most recent first)
@@ -239,6 +365,12 @@ class QuestionService: ObservableObject {
                 break
             }
         }
+        
+        // Cache the result (valid until midnight)
+        cachedStreak = streak
+        streakFetchTime = Date()
+        streakCachedDate = todayDateString
+        print("✅ Streak calculated and cached: \(streak) (valid until midnight)")
         
         return streak
     }
@@ -283,9 +415,20 @@ class QuestionService: ObservableObject {
     
     // MARK: - Check if User Answered Today
     func hasAnsweredToday() async -> Bool {
+        let todayDateString = getCurrentDateString()
+        
+        // Check if we have a cached result for TODAY
+        if let cached = cachedHasAnsweredToday,
+           let lastChecked = lastCheckedDate,
+           lastChecked == todayDateString {
+            print("✅ Using cached 'has answered today' (value: \(cached))")
+            return cached
+        }
+        
+        print("🔄 Checking if answered today (\(todayDateString))...")
+        
         do {
             // Get today's question ID
-            let todayDateString = getCurrentDateString()
             let challengeResponse: [DailyChallenge] = try await SupabaseManager.shared.client
                 .from("daily_challenges")
                 .select("id, question_id, challenge_date")
@@ -310,7 +453,15 @@ class QuestionService: ObservableObject {
                 .execute()
                 .value
             
-            return !progressResponse.isEmpty
+            let hasAnswered = !progressResponse.isEmpty
+            
+            // Cache the result for today
+            cachedHasAnsweredToday = hasAnswered
+            lastCheckedDate = todayDateString
+            hasAnsweredTodayFetchTime = Date()
+            print("✅ Answered today check cached: \(hasAnswered)")
+            
+            return hasAnswered
         } catch {
             print("❌ Failed to check if answered today: \(error)")
             return false

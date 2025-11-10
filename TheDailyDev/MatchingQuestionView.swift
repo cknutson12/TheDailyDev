@@ -269,7 +269,6 @@ struct MatchingQuestionView: View {
     let sampleQuestion = Question(
         id: UUID(),
         title: "Caching Strategies",
-        questionType: "matching",
         content: QuestionContent(
             question: "Match each caching strategy to its best use case",
             options: nil,
@@ -296,8 +295,9 @@ struct MatchingQuestionView: View {
         explanation: "Write-through cache ensures data consistency by writing to both cache and database simultaneously. Write-behind cache improves write performance by asynchronously writing to the database. Read-through cache implements lazy loading, fetching data on cache misses.",
         difficultyLevel: 3,
         category: "Caching",
-        scheduledDate: nil,
-        createdAt: ""
+        createdAt: "",
+        questionType: nil,
+        scheduledDate: nil
     )
     
     return MatchingQuestionView(question: sampleQuestion)

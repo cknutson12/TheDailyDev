@@ -36,6 +36,67 @@ struct TheDailyDevApp: App {
             return
         }
         
+        // Handle email confirmation
+        if url.scheme == "thedailydev" && url.host == "email-confirm" {
+            print("📧 Email confirmation received: \(url.absoluteString)")
+            // Supabase automatically verifies when user clicks link
+            // Just refresh auth state
+            await AuthManager.shared.checkSession()
+            // Show success notification or state change
+            return
+        }
+        
+        // Handle password reset
+        if url.scheme == "thedailydev" && url.host == "password-reset" {
+            print("🔑 Password reset received: \(url.absoluteString)")
+            // Extract token from URL if needed
+            // Supabase handles password reset via the deep link
+            // The URL contains a session token that we can use
+            do {
+                // Establish session from the reset URL
+                let session = try await SupabaseManager.shared.client.auth.session(from: url)
+                print("✅ Password reset session established")
+                // Show ResetPasswordView via notification
+                await MainActor.run {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("ShowPasswordReset"),
+                        object: nil
+                    )
+                }
+            } catch {
+                print("❌ Failed to establish password reset session: \(error)")
+            }
+            return
+        }
+        
+        // Handle trial setup completion
+        if url.scheme == "thedailydev" && url.host == "trial-started" {
+            print("🎉 Trial setup started - completing subscription creation...")
+            
+            // Extract session_id from query parameters
+            if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+               let queryItems = components.queryItems,
+               let sessionIdItem = queryItems.first(where: { $0.name == "session_id" }),
+               let sessionId = sessionIdItem.value {
+                
+                print("📋 Session ID: \(sessionId)")
+                
+                do {
+                    // Complete the trial setup (create subscription with trial)
+                    try await subscriptionService.completeTrialSetup(sessionId: sessionId)
+                    print("✅ Trial subscription created successfully!")
+                    
+                    // Force refresh subscription status (bypass cache)
+                    _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
+                } catch {
+                    print("❌ Failed to complete trial setup: \(error)")
+                }
+            } else {
+                print("❌ No session_id found in trial-started URL")
+            }
+            return
+        }
+        
         // Handle Stripe return
         guard url.scheme == "thedailydev" else {
             print("❌ Invalid scheme: \(url.scheme ?? "nil")")
@@ -48,13 +109,19 @@ struct TheDailyDevApp: App {
         switch host {
         case "subscription-success":
             print("✅ Subscription successful - fetching status...")
-            let subscription = await subscriptionService.fetchSubscriptionStatus()
+            // Force refresh - user just purchased!
+            let subscription = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
             print("📊 Fetched subscription: \(subscription?.status ?? "none")")
             if subscription != nil {
                 print("✅ Active subscription found!")
             } else {
                 print("⚠️ No subscription found - webhook may not have processed yet")
             }
+        case "subscription-updated":
+            print("💳 Subscription updated via billing portal - refreshing...")
+            // Force refresh - user just modified subscription!
+            let subscription = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
+            print("📊 Updated subscription: \(subscription?.status ?? "none")")
         case "subscription-cancel":
             print("❌ Subscription canceled")
         default:

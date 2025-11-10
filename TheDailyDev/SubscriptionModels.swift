@@ -17,6 +17,7 @@ struct UserSubscription: Codable, Identifiable {
     let stripeSubscriptionId: String?
     let status: String
     let currentPeriodEnd: String?
+    let trialEnd: String?
     let createdAt: String
     let updatedAt: String
     
@@ -29,6 +30,7 @@ struct UserSubscription: Codable, Identifiable {
         case stripeSubscriptionId = "stripe_subscription_id"
         case status
         case currentPeriodEnd = "current_period_end"
+        case trialEnd = "trial_end"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -37,37 +39,41 @@ struct UserSubscription: Codable, Identifiable {
         status == "active" || status == "trialing"
     }
     
+    var isInTrial: Bool {
+        guard status == "trialing", let trialEndString = trialEnd else {
+            return false
+        }
+        
+        guard let trialEndDate = ISO8601DateFormatter().date(from: trialEndString) else {
+            return false
+        }
+        
+        return trialEndDate > Date()
+    }
+    
     // Get full name
     var fullName: String {
         let parts = [firstName, lastName].compactMap { $0 }.filter { !$0.isEmpty }
         return parts.isEmpty ? "User" : parts.joined(separator: " ")
     }
     
-    // Check if user can access questions today
-    var canAccessQuestions: Bool {
-        if isActive {
-            return true
-        }
-        
-        // Free users can only access on Fridays
-        let calendar = Calendar.current
-        let today = Date()
-        let weekday = calendar.component(.weekday, from: today)
-        // Friday is weekday 6 (Sunday = 1, Monday = 2, ..., Friday = 6, Saturday = 7)
-        return weekday == 6
-    }
-    
     // Get access status message
     var accessStatusMessage: String {
-        if isActive {
+        if isInTrial {
+            if let trialEndString = trialEnd,
+               let trialEndDate = ISO8601DateFormatter().date(from: trialEndString) {
+                let formatter = DateFormatter()
+                formatter.dateStyle = .medium
+                return "Free trial until \(formatter.string(from: trialEndDate))"
+            }
+            return "Free trial active"
+        }
+        
+        if status == "active" {
             return "Active subscription"
         }
         
-        if canAccessQuestions {
-            return "Free Friday! Answer today's question."
-        }
-        
-        return "Subscription required for daily access"
+        return "Subscription required"
     }
     
     // Format billing date

@@ -46,12 +46,8 @@ struct CategoryPerformanceView: View {
             } else {
                 // Performance list
                 VStack(spacing: 12) {
-                    ForEach(Array(categoryPerformances.enumerated()), id: \.element.id) { index, performance in
-                        CategoryPerformanceRow(
-                            performance: performance,
-                            rank: index + 1,
-                            isTopThree: index < 3
-                        )
+                    ForEach(categoryPerformances) { performance in
+                        CategoryPerformanceRow(performance: performance)
                     }
                 }
             }
@@ -64,38 +60,55 @@ struct CategoryPerformanceView: View {
 
 struct CategoryPerformanceRow: View {
     let performance: CategoryPerformance
-    let rank: Int
-    let isTopThree: Bool
     
-    private var rankColor: Color {
-        switch rank {
-        case 1: return .yellow
-        case 2: return .gray
-        case 3: return .orange
-        default: return .blue
+    // Map categories to icons
+    private var categoryIcon: String {
+        let category = performance.category.lowercased()
+        
+        if category.contains("cache") || category.contains("caching") {
+            return "bolt.fill"
+        } else if category.contains("load") || category.contains("balancing") {
+            return "scale.3d"
+        } else if category.contains("database") || category.contains("db") {
+            return "cylinder.fill"
+        } else if category.contains("distributed") || category.contains("system") {
+            return "network"
+        } else if category.contains("network") || category.contains("cdn") {
+            return "globe"
+        } else if category.contains("api") {
+            return "arrow.left.arrow.right"
+        } else if category.contains("security") || category.contains("auth") {
+            return "lock.fill"
+        } else if category.contains("scalability") || category.contains("scale") {
+            return "chart.line.uptrend.xyaxis"
+        } else if category.contains("microservice") {
+            return "square.grid.3x3.fill"
+        } else if category.contains("message") || category.contains("queue") {
+            return "tray.full.fill"
+        } else if category.contains("storage") {
+            return "externaldrive.fill"
+        } else if category.contains("container") || category.contains("docker") {
+            return "shippingbox.fill"
+        } else {
+            return "star.fill"
         }
     }
     
-    private var rankIcon: String {
-        switch rank {
-        case 1: return "crown.fill"
-        case 2: return "2.circle.fill"
-        case 3: return "3.circle.fill"
-        default: return "\(rank).circle.fill"
-        }
+    private var categoryIconColor: Color {
+        return Theme.Colors.accentGreen
     }
     
     var body: some View {
         HStack(spacing: 12) {
-            // Rank indicator
+            // Category icon
             ZStack {
                 Circle()
-                    .fill(rankColor.opacity(0.2))
+                    .fill(categoryIconColor.opacity(0.15))
                     .frame(width: 40, height: 40)
                 
-                Image(systemName: rankIcon)
+                Image(systemName: categoryIcon)
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(rankColor)
+                    .foregroundColor(categoryIconColor)
             }
             
             // Category info
@@ -139,10 +152,6 @@ struct CategoryPerformanceRow: View {
         .padding(.horizontal, 12)
         .background(Color(UIColor.systemBackground))
         .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isTopThree ? rankColor.opacity(0.3) : Color.clear, lineWidth: 1)
-        )
     }
     
     private var percentageColor: Color {

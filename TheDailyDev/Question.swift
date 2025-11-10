@@ -4,26 +4,28 @@ import Foundation
 struct Question: Codable, Identifiable {
     let id: UUID
     let title: String
-    let questionType: String
     let content: QuestionContent
     let correctAnswer: QuestionAnswer
     let explanation: String?
     let difficultyLevel: Int
     let category: String?
-    let scheduledDate: String?
     let createdAt: String
+    
+    // Deprecated fields (kept for backward compatibility, not used by app)
+    let questionType: String?
+    let scheduledDate: String?
     
     enum CodingKeys: String, CodingKey {
         case id
         case title
-        case questionType = "question_type"
         case content
         case correctAnswer = "correct_answer"
         case explanation
         case difficultyLevel = "difficulty_level"
         case category
-        case scheduledDate = "scheduled_date"
         case createdAt = "created_at"
+        case questionType = "question_type"
+        case scheduledDate = "scheduled_date"
     }
 }
 

@@ -30,67 +30,90 @@ struct SubscriptionSettingsView: View {
             NavigationView {
                 ScrollView {
                     VStack(spacing: 24) {
-                        if let subscription = subscription {
-                            // Subscription Status Card
-                            VStack(spacing: 16) {
-                                Image(systemName: subscription.isActive ? "crown.fill" : "crown")
-                                    .font(.system(size: 50))
-                                    .foregroundColor(subscription.isActive ? Color.theme.accentGreen : Color.theme.textSecondary)
+                        Spacer()
+                            .frame(height: 20)
+                        
+                        // MARK: - Feedback Section
+                        Text("Feedback")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+                        
+                        NavigationLink(destination: FeedbackView()) {
+                            HStack {
+                                Image(systemName: "envelope.fill")
+                                    .font(.title3)
+                                    .foregroundColor(Theme.Colors.accentGreen)
                                 
-                                Text(subscription.isActive ? "Active Subscription" : "No Active Subscription")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.white)
-                                
-                                if subscription.isActive {
-                                    if let billingDate = subscription.formattedBillingDate() {
-                                        Text("Next billing date: \(billingDate)")
-                                            .font(.subheadline)
-                                            .foregroundColor(Color.theme.textSecondary)
-                                    }
-                                    
-                                    Text("$7.99/month")
-                                        .font(.headline)
-                                        .foregroundColor(Theme.Colors.stateCorrect)
-                                } else {
-                                    Text("Subscribe to unlock full access")
-                                        .font(.subheadline)
-                                        .foregroundColor(Color.theme.textSecondary)
-                                }
-                            }
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .cardContainer()
-                            
-                            // Manage Subscription - only show for active subscriptions
-                            if subscription.isActive {
-                                VStack(spacing: 16) {
-                                    Button(action: {
-                                        openStripeBillingPortal()
-                                    }) {
-                                        HStack {
-                                            Image(systemName: "creditcard.fill")
-                                            Text("Update Payment Method")
-                                        }
-                                        .bold()
-                                    }
-                                    .buttonStyle(PrimaryButtonStyle())
-                                    
-                                    Button(role: .destructive, action: {
-                                        openStripeBillingPortal()
-                                    }) {
-                                        HStack {
-                                            Image(systemName: "xmark.circle.fill")
-                                            Text("Cancel Subscription")
-                                        }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Send Feedback")
                                         .font(.headline)
                                         .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .padding()
-                                        .background(Theme.Colors.stateIncorrect)
-                                        .cornerRadius(12)
-                                    }
+                                    Text("Share your thoughts or report issues")
+                                        .font(.caption)
+                                        .foregroundColor(Color.theme.textSecondary)
                                 }
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(Color.theme.textSecondary)
+                            }
+                            .padding()
+                            .cardContainer()
+                        }
+                        
+                        Spacer()
+                            .frame(height: 20)
+                        
+                        // MARK: - Subscription Section
+                        Text("Subscription")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+                        
+                        if let subscription = subscription {
+                            // View Subscription Details - only show for active subscriptions or trials
+                            if subscription.isActive {
+                                NavigationLink(destination: SubscriptionDetailsView(subscription: subscription)) {
+                                    HStack {
+                                        Image(systemName: "doc.text.fill")
+                                            .font(.title3)
+                                            .foregroundColor(Theme.Colors.accentGreen)
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("View Subscription Details")
+                                                .font(.headline)
+                                                .foregroundColor(.white)
+                                            Text("See pricing, billing date, and manage your subscription")
+                                                .font(.caption)
+                                                .foregroundColor(Color.theme.textSecondary)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "chevron.right")
+                                            .foregroundColor(Color.theme.textSecondary)
+                                    }
+                                    .padding()
+                                    .cardContainer()
+                                }
+                            } else {
+                                // For non-subscribers, show subscribe option
+                                VStack(spacing: 8) {
+                                    Text("No Active Subscription")
+                                        .font(.subheadline)
+                                        .foregroundColor(Color.theme.textSecondary)
+                                    
+                                    Text("Subscribe to unlock full access")
+                                        .font(.caption)
+                                        .foregroundColor(Color.theme.textSecondary)
+                                }
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .cardContainer()
                             }
                         }
                         
@@ -129,7 +152,7 @@ struct SubscriptionSettingsView: View {
                     .padding()
                 }
                 .background(Color.theme.background)
-                .navigationTitle("Subscription")
+                .navigationTitle("Settings")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {

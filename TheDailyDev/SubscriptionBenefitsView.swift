@@ -28,13 +28,13 @@ struct SubscriptionBenefitsView: View {
                             .foregroundColor(Color.theme.accentGreen)
                         
                         // Title
-                        Text("Unlock Full Access")
+                        Text("Start Your Free Trial")
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
                         
                         // Description
-                        Text("Subscribe to get unlimited access to daily system design questions and track your progress")
+                        Text("Get 7 days free, then $7.99/month. Cancel anytime.")
                             .font(.body)
                             .foregroundColor(Color.theme.textSecondary)
                             .multilineTextAlignment(.center)
@@ -78,15 +78,20 @@ struct SubscriptionBenefitsView: View {
                                     .font(.body)
                                     .foregroundColor(Color.theme.textSecondary)
                             }
-                            Text("Cancel anytime")
+                            Text("7-day free trial • Auto-renews after trial")
                                 .font(.caption)
                                 .foregroundColor(Color.theme.textSecondary)
                         }
                         
                         // Subscribe Button
                         Button(action: onSubscribe) {
-                            Text("Subscribe Now")
-                                .bold()
+                            VStack(spacing: 4) {
+                                Text("Start My Free Trial")
+                                    .bold()
+                                Text("No charge for 7 days")
+                                    .font(.caption)
+                                    .opacity(0.8)
+                            }
                         }
                         .buttonStyle(PrimaryButtonStyle())
                         

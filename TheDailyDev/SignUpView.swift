@@ -10,11 +10,23 @@ struct SignUpView: View {
     @State private var message = ""
     @State private var isLoading = false
     @State private var showingSubscriptionBenefits = false
+    @State private var showingEmailVerification = false
+    @State private var signupEmail = ""
     @StateObject private var subscriptionService = SubscriptionService.shared
     
     var body: some View {
         ZStack {
-            Color.theme.background.ignoresSafeArea()
+            // Gradient background for depth
+            LinearGradient(
+                colors: [
+                    Color.black,
+                    Color(red: 0.08, green: 0.20, blue: 0.14)  // Lighter dark green tint at bottom
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            
             VStack(spacing: 20) {
                 VStack(spacing: 16) {
                     Text("Create Account")
@@ -83,24 +95,32 @@ struct SignUpView: View {
                     
                     VStack(spacing: 12) {
                         Button(action: { Task { await signInWithGoogle() } }) {
-                            HStack {
-                                Image(systemName: "globe")
-                                    .font(.title3)
+                            HStack(spacing: 12) {
+                                Image("google-logo")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
                                 Text("Continue with Google")
                                     .font(.headline)
                             }
-                            .foregroundColor(.black)
+                            .foregroundColor(Theme.Colors.textPrimary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(Color.white)
+                            .background(Theme.Colors.surface)
                             .cornerRadius(Theme.Metrics.cornerRadius)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
+                                    .stroke(Theme.Colors.border, lineWidth: 1)
+                            )
                         }
                         .accessibilityIdentifier("GoogleSignInButton")
                         
                         Button(action: { Task { await signInWithGitHub() } }) {
-                            HStack {
-                                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                                    .font(.title3)
+                            HStack(spacing: 12) {
+                                Image("github-logo")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
                                 Text("Continue with GitHub")
                                     .font(.headline)
                             }
@@ -131,6 +151,18 @@ struct SignUpView: View {
                     onSkip: {
                         showingSubscriptionBenefits = false
                         isLoggedIn = true
+                    }
+                )
+            }
+            .sheet(isPresented: $showingEmailVerification) {
+                EmailVerificationView(
+                    email: signupEmail,
+                    onResend: {
+                        // Resend is handled in EmailVerificationView
+                    },
+                    onRetry: {
+                        // Check if email is now verified
+                        await checkEmailVerification()
                     }
                 )
             }
@@ -185,25 +217,73 @@ struct SignUpView: View {
             // If sign-up was successful, create user profile
             let user = session.user
             
-            // Create user subscription record in the background
-            Task {
-                do {
-                    try await createUserSubscription(userId: user.id)
-                } catch {
-                    print("Failed to create user subscription: \(error)")
+            // Check if email is verified
+            if user.emailConfirmedAt == nil {
+                // Show verification view instead of subscription benefits
+                await MainActor.run {
+                    signupEmail = email
+                    showingEmailVerification = true
                 }
-            }
-            
-            // Update auth manager
-            await AuthManager.shared.checkSession()
-            
-            // Show subscription benefits screen
-            await MainActor.run {
-                showingSubscriptionBenefits = true
+            } else {
+                // Create user subscription record in the background
+                Task {
+                    do {
+                        try await createUserSubscription(userId: user.id)
+                    } catch {
+                        print("Failed to create user subscription: \(error)")
+                    }
+                }
+                
+                // Update auth manager
+                await AuthManager.shared.checkSession()
+                
+                // Show subscription benefits screen
+                await MainActor.run {
+                    showingSubscriptionBenefits = true
+                }
             }
         } catch {
             isLoggedIn = false
             message = "Sign-up failed: \(error.localizedDescription)"
+        }
+    }
+    
+    // MARK: - Check Email Verification
+    func checkEmailVerification() async {
+        do {
+            let session = try await SupabaseManager.shared.client.auth.session
+            if session.user.emailConfirmedAt != nil {
+                // Email is verified, proceed with signup flow
+                let user = session.user
+                
+                // Create user subscription record
+                Task {
+                    do {
+                        try await createUserSubscription(userId: user.id)
+                    } catch {
+                        print("Failed to create user subscription: \(error)")
+                    }
+                }
+                
+                // Update auth manager
+                await AuthManager.shared.checkSession()
+                
+                // Show subscription benefits screen
+                await MainActor.run {
+                    showingEmailVerification = false
+                    showingSubscriptionBenefits = true
+                }
+            } else {
+                // Still not verified
+                await MainActor.run {
+                    // Keep showing verification view
+                }
+            }
+        } catch {
+            // No session yet, user still needs to verify
+            await MainActor.run {
+                // Keep showing verification view
+            }
         }
     }
     

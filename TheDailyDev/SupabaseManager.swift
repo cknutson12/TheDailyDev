@@ -12,5 +12,24 @@ class SupabaseManager {
             supabaseKey: Config.supabaseKey
         )
     }
+    
+    // MARK: - Email Verification
+    
+    func resendVerificationEmail(email: String) async throws {
+        try await client.auth.resend(
+            email: email,
+            type: .signup
+        )
+    }
+    
+    // MARK: - Password Reset
+    
+    func requestPasswordReset(email: String) async throws {
+        // Reset password for email - this sends a recovery email
+        try await client.auth.resetPasswordForEmail(
+            email,
+            redirectTo: URL(string: "thedailydev://password-reset")
+        )
+    }
 }
 

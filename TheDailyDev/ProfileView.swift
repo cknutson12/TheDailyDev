@@ -22,20 +22,40 @@ struct ProfileView: View {
 
     var body: some View {
         ZStack {
-            Color.theme.background.ignoresSafeArea()
+            // Gradient background for depth
+            LinearGradient(
+                colors: [
+                    Color.black,
+                    Color(red: 0.08, green: 0.20, blue: 0.14)  // Lighter dark green tint at bottom
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(spacing: 16) {
-                        // User Stats Header
+                        // User Statistics Header
                         if !userName.isEmpty {
-                            Text("\(userName) Stats")
-                                .font(.largeTitle)
-                                .fontWeight(.bold)
+                            Text("\(userName)'s Statistics")
+                                .font(.system(size: 34, weight: .heavy, design: .monospaced))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(red: 0.4, green: 0.9, blue: 0.7),
+                                            Theme.Colors.accentGreen
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                                .shadow(color: Theme.Colors.accentGreen.opacity(0.5), radius: 10, x: 0, y: 0)
+                                .shadow(color: .black.opacity(0.8), radius: 2, x: 0, y: 3)
                                 .minimumScaleFactor(0.5)
                                 .lineLimit(1)
                                 .padding(.horizontal, 20)
                                 .padding(.top, 16)
-                                .foregroundColor(.white)
                         }
                         
                         // Subscription Status
@@ -100,6 +120,10 @@ struct ProfileView: View {
                         }
                     }
                     .padding(.bottom, 16)
+                }
+                .refreshable {
+                    // Pull-to-refresh: Force refresh all data
+                    await refreshProfileData()
                 }
             }
         }
@@ -193,6 +217,20 @@ struct ProfileView: View {
             self.categoryPerformances = performances
             self.isLoadingCategories = false
         }
+    }
+    
+    // MARK: - Refresh Profile Data (Pull-to-Refresh)
+    private func refreshProfileData() async {
+        print("🔄 Profile manual refresh triggered")
+        
+        // Invalidate caches to force fresh data
+        QuestionService.shared.invalidateProgressCache()
+        await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
+        
+        // Reload all data
+        await loadUserData()
+        
+        print("✅ Profile refresh complete")
     }
     
 }

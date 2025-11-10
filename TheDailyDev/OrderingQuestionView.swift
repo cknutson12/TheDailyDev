@@ -154,7 +154,6 @@ struct OrderingQuestionView: View {
     let q = Question(
         id: UUID(),
         title: "HTTP Request Lifecycle",
-        questionType: "ordering",
         content: QuestionContent(
             question: "Arrange the steps of an HTTP request from client to server response.",
             options: nil,
@@ -176,8 +175,9 @@ struct OrderingQuestionView: View {
         explanation: "Typical flow: client → load balancer → app → database → response.",
         difficultyLevel: 2,
         category: "Networking",
-        scheduledDate: nil,
-        createdAt: ""
+        createdAt: "",
+        questionType: nil,
+        scheduledDate: nil
     )
     return OrderingQuestionView(question: q)
 }

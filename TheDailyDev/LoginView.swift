@@ -7,30 +7,34 @@ struct LoginView: View {
     @State private var password = ""
     @State private var message = ""
     @State private var isLoading = false
+    @State private var showingEmailVerification = false
+    @State private var showingForgotPassword = false
     
     var body: some View {
         ZStack {
-            Color.theme.background.ignoresSafeArea()
+            // Gradient background for depth
+            LinearGradient(
+                colors: [
+                    Color.black,
+                    Color(red: 0.08, green: 0.20, blue: 0.14)  // Lighter dark green tint at bottom
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            
             VStack(spacing: 20) {
                 Spacer()
                 
-                VStack(spacing: 16) {
-                    Text("Welcome back")
-                        .font(.title)
-                        .bold()
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(spacing: 12) {
+                    TextField("Email", text: $email)
+                        .textFieldStyle(DarkTextFieldStyle())
+                        .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("EmailField")
                     
-                    VStack(spacing: 12) {
-                        TextField("Email", text: $email)
-                            .textFieldStyle(DarkTextFieldStyle())
-                            .textInputAutocapitalization(.never)
-                            .accessibilityIdentifier("EmailField")
-                        
-                        SecureField("Password", text: $password)
-                            .textFieldStyle(DarkTextFieldStyle())
-                            .accessibilityIdentifier("PasswordField")
-                    }
+                    SecureField("Password", text: $password)
+                        .textFieldStyle(DarkTextFieldStyle())
+                        .accessibilityIdentifier("PasswordField")
                 }
                 .cardContainer()
                 
@@ -55,6 +59,16 @@ struct LoginView: View {
                 .disabled(isLoading)
                 .accessibilityIdentifier("SignInButton")
                 
+                // Forgot Password Button
+                Button(action: {
+                    showingForgotPassword = true
+                }) {
+                    Text("Forgot Password?")
+                        .font(.subheadline)
+                        .foregroundColor(Theme.Colors.textSecondary)
+                }
+                .padding(.top, 8)
+                
                 // Social Sign In
                 VStack(spacing: 12) {
                     HStack {
@@ -75,24 +89,32 @@ struct LoginView: View {
                     
                     VStack(spacing: 12) {
                         Button(action: { Task { await signInWithGoogle() } }) {
-                            HStack {
-                                Image(systemName: "globe")
-                                    .font(.title3)
+                            HStack(spacing: 12) {
+                                Image("google-logo")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
                                 Text("Continue with Google")
                                     .font(.headline)
                             }
-                            .foregroundColor(.black)
+                            .foregroundColor(Theme.Colors.textPrimary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(Color.white)
+                            .background(Theme.Colors.surface)
                             .cornerRadius(Theme.Metrics.cornerRadius)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
+                                    .stroke(Theme.Colors.border, lineWidth: 1)
+                            )
                         }
                         .accessibilityIdentifier("GoogleSignInButton")
                         
                         Button(action: { Task { await signInWithGitHub() } }) {
-                            HStack {
-                                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                                    .font(.title3)
+                            HStack(spacing: 12) {
+                                Image("github-logo")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
                                 Text("Continue with GitHub")
                                     .font(.headline)
                             }
@@ -113,6 +135,21 @@ struct LoginView: View {
                 Spacer()
             }
             .padding()
+            .sheet(isPresented: $showingEmailVerification) {
+                EmailVerificationView(
+                    email: email,
+                    onResend: {
+                        // Resend is handled in EmailVerificationView
+                    },
+                    onRetry: {
+                        // Try to sign in again after verification
+                        await signIn()
+                    }
+                )
+            }
+            .sheet(isPresented: $showingForgotPassword) {
+                ForgotPasswordView()
+            }
         }
         .preferredColorScheme(.dark)
     }
@@ -130,9 +167,17 @@ struct LoginView: View {
                 password: password
             )
 
-            // Successfully logged in - update auth manager
-            await AuthManager.shared.checkSession()
-            isLoggedIn = true
+            // Check if email is verified
+            if session.user.emailConfirmedAt == nil {
+                await MainActor.run {
+                    message = "Please verify your email before signing in. Check your inbox for the verification link."
+                    showingEmailVerification = true
+                }
+            } else {
+                // Successfully logged in - update auth manager
+                await AuthManager.shared.checkSession()
+                isLoggedIn = true
+            }
         } catch {
             isLoggedIn = false
             message = "Sign-in failed: \(error.localizedDescription)"

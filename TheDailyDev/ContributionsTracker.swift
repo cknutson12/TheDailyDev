@@ -169,8 +169,9 @@ struct ContributionsGrid: View {
                 .frame(width: 40) // Wider for better text visibility
                 
                 // Single ScrollView containing both month labels and contribution squares
-                ScrollView(.horizontal, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 4) {
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 4) {
                         // Month labels positioned based on calendar weeks
                         HStack(spacing: 0) {
                             ForEach(Array(0..<weeksToShow), id: \.self) { week in
@@ -229,6 +230,14 @@ struct ContributionsGrid: View {
                         }
                     }
                     .padding(.horizontal, 16)
+                    .id("contributionsGrid")
+                }
+                .onAppear {
+                    // Scroll to the right (most recent data) when view appears
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        proxy.scrollTo("contributionsGrid", anchor: .trailing)
+                    }
+                }
                 }
             }
         }
