@@ -61,8 +61,8 @@ serve(async (req) => {
 
     console.log('✅ User authenticated:', user.id)
 
-    const { user_id, email } = await req.json()
-    console.log('📥 Request body:', { user_id, email })
+    const { user_id, email, price_id } = await req.json()
+    console.log('📥 Request body:', { user_id, email, price_id })
 
     // Verify the user_id matches the authenticated user (case-insensitive)
     if (user_id.toLowerCase() !== user.id.toLowerCase()) {
@@ -113,12 +113,17 @@ serve(async (req) => {
     console.log('🛒 Creating Stripe Checkout session...')
     
     // Create Checkout Session in SETUP mode (collect payment method without charging)
+    // Store price_id in metadata so we can use it in complete-trial-setup
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'setup',
       payment_method_types: ['card'],
       success_url: `thedailydev://trial-started?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: 'thedailydev://subscription-cancel',
+      metadata: {
+        price_id: price_id || '', // Store price_id for later use
+        user_id: user_id
+      }
     })
 
     console.log('✅ Created checkout session:', session.id)

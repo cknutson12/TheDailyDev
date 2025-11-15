@@ -10,6 +10,7 @@ import SwiftUI
 @main
 struct TheDailyDevApp: App {
     @StateObject private var subscriptionService = SubscriptionService.shared
+    @StateObject private var passwordResetManager = PasswordResetManager.shared
     
     var body: some Scene {
         WindowGroup {
@@ -18,6 +19,18 @@ struct TheDailyDevApp: App {
                     Task {
                         await handleDeepLink(url: url)
                     }
+                }
+                .sheet(isPresented: $passwordResetManager.showingResetView) {
+                    if let resetURL = passwordResetManager.resetURL {
+                        ResetPasswordView(resetURL: resetURL)
+                    }
+                }
+                .alert("Password Reset Error", isPresented: $passwordResetManager.showingError) {
+                    Button("OK") {
+                        passwordResetManager.dismiss()
+                    }
+                } message: {
+                    Text(passwordResetManager.errorMessage ?? "An error occurred with the password reset link.")
                 }
         }
     }
@@ -49,22 +62,25 @@ struct TheDailyDevApp: App {
         // Handle password reset
         if url.scheme == "thedailydev" && url.host == "password-reset" {
             print("🔑 Password reset received: \(url.absoluteString)")
-            // Extract token from URL if needed
-            // Supabase handles password reset via the deep link
-            // The URL contains a session token that we can use
+            
+            // Validate the token by attempting to establish a session
+            // This is where Supabase validates the token server-side
             do {
-                // Establish session from the reset URL
+                // Attempt to establish session from the reset URL
+                // This validates the token: checks if it exists, hasn't expired, and hasn't been used
                 let session = try await SupabaseManager.shared.client.auth.session(from: url)
-                print("✅ Password reset session established")
-                // Show ResetPasswordView via notification
+                print("✅ Password reset token validated - session established")
+                
+                // Token is valid - show reset view
                 await MainActor.run {
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("ShowPasswordReset"),
-                        object: nil
-                    )
+                    passwordResetManager.setResetURL(url)
                 }
             } catch {
-                print("❌ Failed to establish password reset session: \(error)")
+                // Token validation failed - show error
+                print("❌ Password reset token validation failed: \(error)")
+                await MainActor.run {
+                    passwordResetManager.setError(error)
+                }
             }
             return
         }

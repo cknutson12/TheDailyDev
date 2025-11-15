@@ -19,6 +19,7 @@ struct ProfileView: View {
     @State private var isLoadingCategories = false
     @State private var showingSubscriptionSettings = false
     @State private var showingSubscriptionBenefits = false
+    @State private var isLoadingSubscription = true
 
     var body: some View {
         ZStack {
@@ -59,7 +60,14 @@ struct ProfileView: View {
                         }
                         
                         // Subscription Status
-                        if let subscription = subscriptionService.currentSubscription, subscription.isActive {
+                        if isLoadingSubscription {
+                            VStack {
+                                ProgressView("Loading your subscription...")
+                                    .frame(maxWidth: .infinity, maxHeight: 120)
+                            }
+                            .cardContainer()
+                            .padding(.horizontal)
+                        } else if let subscription = subscriptionService.currentSubscription, subscription.isActive {
                             // Show stats for subscribers
                             if isLoadingHistory {
                                 VStack {
@@ -144,9 +152,9 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showingSubscriptionBenefits) {
             SubscriptionBenefitsView(
-                onSubscribe: {
+                onSubscribe: { plan in
                     Task {
-                        await handleSubscription()
+                        await handleSubscription(plan: plan)
                     }
                 }
             )
@@ -166,9 +174,9 @@ struct ProfileView: View {
     }
     
     // MARK: - Handle Subscription
-    private func handleSubscription() async {
+    private func handleSubscription(plan: SubscriptionPlan) async {
         do {
-            let checkoutURL = try await subscriptionService.createCheckoutSession()
+            let checkoutURL = try await subscriptionService.createCheckoutSession(plan: plan)
             await MainActor.run {
                 UIApplication.shared.open(checkoutURL)
             }
@@ -180,7 +188,13 @@ struct ProfileView: View {
     // MARK: - Load User Data
     private func loadUserData() async {
         // Load subscription status
+        await MainActor.run {
+            self.isLoadingSubscription = true
+        }
         _ = await subscriptionService.fetchSubscriptionStatus()
+        await MainActor.run {
+            self.isLoadingSubscription = false
+        }
         
         // Load user display name (prioritizes profile name over email)
         let displayName = await QuestionService.shared.getUserDisplayName()
@@ -225,7 +239,13 @@ struct ProfileView: View {
         
         // Invalidate caches to force fresh data
         QuestionService.shared.invalidateProgressCache()
+        await MainActor.run {
+            self.isLoadingSubscription = true
+        }
         await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
+        await MainActor.run {
+            self.isLoadingSubscription = false
+        }
         
         // Reload all data
         await loadUserData()

@@ -62,6 +62,29 @@ serve(async (req) => {
 
     const { user_id, session_id, price_id } = await req.json()
     console.log('📥 Request body:', { user_id, session_id, price_id })
+    
+    // Retrieve the checkout session to get metadata (including price_id if stored there)
+    let finalPriceId = price_id
+    if (session_id) {
+      try {
+        const checkoutSession = await stripe.checkout.sessions.retrieve(session_id)
+        // Use price_id from metadata if not provided in request body
+        if (!finalPriceId && checkoutSession.metadata?.price_id) {
+          finalPriceId = checkoutSession.metadata.price_id
+          console.log('📋 Using price_id from session metadata:', finalPriceId)
+        }
+      } catch (error) {
+        console.error('⚠️ Could not retrieve checkout session:', error)
+      }
+    }
+    
+    if (!finalPriceId) {
+      console.error('❌ No price_id provided')
+      return new Response(JSON.stringify({ error: 'price_id is required' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
+    }
 
     // Verify the user_id matches the authenticated user (case-insensitive)
     if (user_id.toLowerCase() !== user.id.toLowerCase()) {
@@ -74,20 +97,82 @@ serve(async (req) => {
     
     console.log('✅ User ID verified')
 
+    // Fetch trial days from subscription plan
+    let trialDays = 7 // Default fallback
+    try {
+      const { data: plan } = await supabase
+        .from('subscription_plans')
+        .select('trial_days')
+        .eq('stripe_price_id', finalPriceId)
+        .single()
+      
+      if (plan?.trial_days) {
+        trialDays = plan.trial_days
+        console.log(`📅 Using trial days from plan: ${trialDays}`)
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not fetch trial days from plan, using default 7 days:', error)
+    }
+
     // Retrieve the Setup Session to get the payment method
-    const session = await stripe.checkout.sessions.retrieve(session_id)
+    let session
+    try {
+      session = await stripe.checkout.sessions.retrieve(session_id)
+    } catch (error) {
+      console.error('❌ Failed to retrieve checkout session:', error)
+      return new Response(JSON.stringify({ 
+        error: 'Failed to retrieve checkout session',
+        details: error.message 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
+    }
 
     if (!session.setup_intent || !session.customer) {
-      throw new Error('Invalid session: missing setup_intent or customer')
+      console.error('❌ Invalid session:', { 
+        has_setup_intent: !!session.setup_intent, 
+        has_customer: !!session.customer,
+        session_mode: session.mode 
+      })
+      return new Response(JSON.stringify({ 
+        error: 'Invalid session: missing setup_intent or customer',
+        details: `Session mode: ${session.mode}, Setup intent: ${!!session.setup_intent}, Customer: ${!!session.customer}`
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
     }
 
     // Get the payment method from the SetupIntent
-    const setupIntent = await stripe.setupIntents.retrieve(session.setup_intent as string)
+    let setupIntent
+    try {
+      setupIntent = await stripe.setupIntents.retrieve(session.setup_intent as string)
+    } catch (error) {
+      console.error('❌ Failed to retrieve setup intent:', error)
+      return new Response(JSON.stringify({ 
+        error: 'Failed to retrieve setup intent',
+        details: error.message 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
+    }
+    
     const paymentMethodId = setupIntent.payment_method as string
 
     if (!paymentMethodId) {
-      throw new Error('No payment method attached to setup intent')
+      console.error('❌ No payment method in setup intent:', setupIntent)
+      return new Response(JSON.stringify({ 
+        error: 'No payment method attached to setup intent',
+        details: 'The setup intent does not have a payment method'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
     }
+    
+    console.log('✅ Payment method found:', paymentMethodId)
 
     // Attach the payment method to the customer (if not already attached)
     await stripe.paymentMethods.attach(paymentMethodId, {
@@ -106,15 +191,16 @@ serve(async (req) => {
       },
     })
 
-    // Calculate trial end date (7 days from now)
-    const trialEndTimestamp = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60)
+    // Calculate trial end date (using trial days from plan)
+    const trialEndTimestamp = Math.floor(Date.now() / 1000) + (trialDays * 24 * 60 * 60)
     const trialEndDate = new Date(trialEndTimestamp * 1000).toISOString()
+    console.log(`📅 Trial end date: ${trialEndDate} (${trialDays} days from now)`)
 
     // Create subscription with trial period
     const subscription = await stripe.subscriptions.create({
       customer: session.customer as string,
       items: [{
-        price: price_id,
+        price: finalPriceId,
       }],
       trial_end: trialEndTimestamp,
       payment_behavior: 'default_incomplete',

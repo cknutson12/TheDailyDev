@@ -11,6 +11,7 @@ struct SubscriptionDetailsView: View {
     let subscription: UserSubscription
     @StateObject private var subscriptionService = SubscriptionService.shared
     @State private var errorMessage: String?
+    @State private var currentPlan: SubscriptionPlan?
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -55,7 +56,7 @@ struct SubscriptionDetailsView: View {
                         DetailRow(
                             icon: "dollarsign.circle.fill",
                             label: "Price",
-                            value: "$7.99/month"
+                            value: currentPlan?.formattedPrice ?? "$4.99/month"
                         )
                         
                         Divider()
@@ -96,9 +97,10 @@ struct SubscriptionDetailsView: View {
                     
                     // Info Box
                     if subscription.isInTrial {
+                        let priceText = currentPlan?.formattedPrice ?? "$4.99/month"
                         InfoBox(
                             icon: "info.circle.fill",
-                            text: "Your card will be charged $7.99/month automatically when your trial ends. You can cancel anytime before then at no charge."
+                            text: "Your card will be charged \(priceText) automatically when your trial ends. You can cancel anytime before then at no charge."
                         )
                     } else if subscription.isActive {
                         InfoBox(
@@ -144,6 +146,10 @@ struct SubscriptionDetailsView: View {
         .navigationTitle("Subscription Details")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
+        .task {
+            // Fetch current plan for pricing display
+            currentPlan = await subscriptionService.fetchCurrentPlan()
+        }
     }
     
     private func formatDate(_ dateString: String) -> String {

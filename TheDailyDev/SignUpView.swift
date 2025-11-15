@@ -143,9 +143,9 @@ struct SignUpView: View {
             .padding()
             .sheet(isPresented: $showingSubscriptionBenefits) {
                 SubscriptionBenefitsView(
-                    onSubscribe: {
+                    onSubscribe: { plan in
                         Task {
-                            await handleSubscription()
+                            await handleSubscription(plan: plan)
                         }
                     },
                     onSkip: {
@@ -171,10 +171,10 @@ struct SignUpView: View {
     }
     
     // MARK: - Handle Subscription
-    private func handleSubscription() async {
+    private func handleSubscription(plan: SubscriptionPlan) async {
         do {
             print("🔄 Creating Stripe checkout session...")
-            let checkoutURL = try await subscriptionService.createCheckoutSession()
+            let checkoutURL = try await subscriptionService.createCheckoutSession(plan: plan)
             print("✅ Checkout session created: \(checkoutURL)")
             
             await MainActor.run {

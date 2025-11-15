@@ -19,6 +19,7 @@ class SubscriptionService: ObservableObject {
     private var lastFetchTime: Date?
     private let cacheTimeout: TimeInterval = 300 // 5 minutes
     
+    
     private init() {}
     
     // MARK: - Cache Invalidation
@@ -26,6 +27,73 @@ class SubscriptionService: ObservableObject {
     func invalidateCache() {
         lastFetchTime = nil
         print("🔄 Cache invalidated - next fetch will be fresh")
+    }
+    
+    // Subscription plan cache
+    private var currentPlan: SubscriptionPlan?
+    private var allPlans: [SubscriptionPlan] = []
+    private var planFetchTime: Date?
+    private let planCacheTimeout: TimeInterval = 3600 // 1 hour (prices don't change often)
+    
+    // MARK: - Fetch Current Subscription Plan
+    /// Fetches the active monthly subscription plan from the database
+    /// This allows updating prices without releasing a new app version
+    func fetchCurrentPlan(forceRefresh: Bool = false) async -> SubscriptionPlan? {
+        // Fetch all plans first to populate cache
+        _ = await fetchAllPlans(forceRefresh: forceRefresh)
+        
+        // Return monthly plan (default)
+        return allPlans.first { $0.name == "monthly" }
+    }
+    
+    // MARK: - Fetch All Subscription Plans
+    /// Fetches all active subscription plans from the database
+    /// Returns monthly and annual plans
+    func fetchAllPlans(forceRefresh: Bool = false) async -> [SubscriptionPlan] {
+        // Check cache first
+        if !forceRefresh,
+           !allPlans.isEmpty,
+           let lastFetch = planFetchTime,
+           Date().timeIntervalSince(lastFetch) < planCacheTimeout {
+            return allPlans
+        }
+        
+        do {
+            let plans: [SubscriptionPlan] = try await SupabaseManager.shared.client
+                .from("subscription_plans")
+                .select()
+                .eq("is_active", value: true)
+                .order("billing_period", ascending: true) // Monthly first, then annual
+                .execute()
+                .value
+            
+            await MainActor.run {
+                self.allPlans = plans
+                self.currentPlan = plans.first { $0.name == "monthly" }
+                self.planFetchTime = Date()
+            }
+            
+            print("✅ Fetched \(plans.count) subscription plan(s)")
+            for plan in plans {
+                print("   - \(plan.name): \(plan.formattedPrice)")
+            }
+            
+            return plans
+        } catch {
+            print("❌ Failed to fetch subscription plans: \(error)")
+            // Return cached plans if available, even if expired
+            return allPlans
+        }
+    }
+    
+    /// Get the current plan (cached or fetch if needed)
+    var currentPlanSync: SubscriptionPlan? {
+        return currentPlan
+    }
+    
+    /// Get all plans (cached)
+    var allPlansSync: [SubscriptionPlan] {
+        return allPlans
     }
     
     // MARK: - Extract Name from User Metadata
@@ -169,6 +237,13 @@ class SubscriptionService: ObservableObject {
             
             return subscriptions.first
         } catch {
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                print("ℹ️ Subscription fetch cancelled (likely superseded by a newer request).")
+                return await MainActor.run {
+                    self.currentSubscription
+                }
+            }
             await MainActor.run {
                 self.errorMessage = "Failed to fetch subscription: \(error.localizedDescription)"
             }
@@ -178,7 +253,7 @@ class SubscriptionService: ObservableObject {
     }
     
     // MARK: - Create Checkout Session
-    func createCheckoutSession() async throws -> URL {
+    func createCheckoutSession(plan: SubscriptionPlan? = nil) async throws -> URL {
         guard let functionURL = getFunctionURL(functionName: "create-checkout-session") else {
             print("❌ Failed to get function URL")
             throw SubscriptionError.invalidConfiguration
@@ -193,9 +268,20 @@ class SubscriptionService: ObservableObject {
         request.setValue("Bearer \(session.accessToken)", 
                         forHTTPHeaderField: "Authorization")
         
+        // Use provided plan or fetch default monthly plan
+        let planToUse: SubscriptionPlan
+        if let providedPlan = plan {
+            planToUse = providedPlan
+        } else {
+            guard let fetchedPlan = await fetchCurrentPlan() else {
+                throw SubscriptionError.invalidConfiguration
+            }
+            planToUse = fetchedPlan
+        }
+        
         let body = [
             "user_id": userId,
-            "price_id": "price_1SREPsK9eNlBD1eEdAJAAhlc"
+            "price_id": planToUse.stripePriceId
         ]
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -231,7 +317,7 @@ class SubscriptionService: ObservableObject {
     }
     
     // MARK: - Initiate Trial Setup (Step 1: Collect Payment Method)
-    func initiateTrialSetup() async throws -> URL {
+    func initiateTrialSetup(plan: SubscriptionPlan? = nil) async throws -> URL {
         guard let functionURL = getFunctionURL(functionName: "initiate-trial") else {
             print("❌ Failed to get function URL")
             throw SubscriptionError.invalidConfiguration
@@ -247,9 +333,21 @@ class SubscriptionService: ObservableObject {
         request.setValue("Bearer \(session.accessToken)",
                         forHTTPHeaderField: "Authorization")
         
+        // Use provided plan or fetch default monthly plan
+        let planToUse: SubscriptionPlan
+        if let providedPlan = plan {
+            planToUse = providedPlan
+        } else {
+            guard let fetchedPlan = await fetchCurrentPlan() else {
+                throw SubscriptionError.invalidConfiguration
+            }
+            planToUse = fetchedPlan
+        }
+        
         let body = [
             "user_id": userId,
-            "email": email
+            "email": email,
+            "price_id": planToUse.stripePriceId
         ]
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -263,6 +361,16 @@ class SubscriptionService: ObservableObject {
         
         guard httpResponse.statusCode == 200 else {
             print("❌ Non-200 status code: \(httpResponse.statusCode)")
+            // Try to parse error message from response
+            if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errorMessage = errorJson["error"] as? String {
+                print("❌ Error from server: \(errorMessage)")
+                if let details = errorJson["details"] as? String {
+                    print("❌ Error details: \(details)")
+                }
+            } else if let responseString = String(data: data, encoding: .utf8) {
+                print("❌ Response body: \(responseString)")
+            }
             throw SubscriptionError.networkError
         }
         
@@ -285,7 +393,7 @@ class SubscriptionService: ObservableObject {
     }
     
     // MARK: - Complete Trial Setup (Step 2: Create Subscription with Trial)
-    func completeTrialSetup(sessionId: String) async throws {
+    func completeTrialSetup(sessionId: String, plan: SubscriptionPlan? = nil) async throws {
         guard let functionURL = getFunctionURL(functionName: "complete-trial-setup") else {
             print("❌ Failed to get function URL")
             throw SubscriptionError.invalidConfiguration
@@ -300,23 +408,50 @@ class SubscriptionService: ObservableObject {
         request.setValue("Bearer \(session.accessToken)",
                         forHTTPHeaderField: "Authorization")
         
+        // Use provided plan or fetch default monthly plan
+        // The price_id should also be in the session metadata from initiateTrialSetup
+        let planToUse: SubscriptionPlan
+        if let providedPlan = plan {
+            planToUse = providedPlan
+        } else {
+            guard let fetchedPlan = await fetchCurrentPlan() else {
+                throw SubscriptionError.invalidConfiguration
+            }
+            planToUse = fetchedPlan
+        }
+        
         let body = [
             "user_id": userId,
             "session_id": sessionId,
-            "price_id": "price_1SREPsK9eNlBD1eEdAJAAhlc"
+            "price_id": planToUse.stripePriceId
         ]
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("❌ Invalid response type")
+            throw SubscriptionError.networkError
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            print("❌ Non-200 status code: \(httpResponse.statusCode)")
+            // Try to parse error message from response
+            if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errorMessage = errorJson["error"] as? String {
+                print("❌ Error from server: \(errorMessage)")
+                if let details = errorJson["details"] as? String {
+                    print("❌ Error details: \(details)")
+                }
+            } else if let responseString = String(data: data, encoding: .utf8) {
+                print("❌ Response body: \(responseString)")
+            }
             throw SubscriptionError.networkError
         }
         
         // Refresh subscription status
-        await fetchSubscriptionStatus()
+        _ = await fetchSubscriptionStatus()
     }
     
     // MARK: - Check if User Can Access Questions
@@ -375,7 +510,7 @@ class SubscriptionService: ObservableObject {
         }
         
         // Refresh subscription status
-        await fetchSubscriptionStatus()
+        _ = await fetchSubscriptionStatus()
     }
     
     // MARK: - Get Billing Portal URL

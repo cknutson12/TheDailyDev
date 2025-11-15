@@ -25,7 +25,6 @@ struct LoginView: View {
             
             VStack(spacing: 20) {
                 Spacer()
-                
                 VStack(spacing: 12) {
                     TextField("Email", text: $email)
                         .textFieldStyle(DarkTextFieldStyle())

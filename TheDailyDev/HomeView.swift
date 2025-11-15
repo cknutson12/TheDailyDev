@@ -20,6 +20,7 @@ struct HomeView: View {
     @State private var canAccessQuestions = false
     @State private var hasAnsweredBefore = false
     @State private var showingFirstQuestionComplete = false
+    @State private var currentPlan: SubscriptionPlan?
     
     // Splash messages (Minecraft-style)
     private let splashMessages = [
@@ -92,6 +93,8 @@ struct HomeView: View {
         .preferredColorScheme(.dark)
         .task {
             await loadInitialData()
+            // Fetch current plan for pricing display
+            currentPlan = await subscriptionService.fetchCurrentPlan()
         }
     }
     
@@ -258,10 +261,17 @@ struct HomeView: View {
                             .bold()
                             .foregroundColor(.white)
                         
-                        Text("Get 7 days free, then $7.99/month")
-                            .font(.body)
-                            .foregroundColor(Color.theme.textSecondary)
-                            .multilineTextAlignment(.center)
+                        if let plan = currentPlan {
+                            Text("Get \(plan.trialDays) days free, then \(plan.formattedPrice)")
+                                .font(.body)
+                                .foregroundColor(Color.theme.textSecondary)
+                                .multilineTextAlignment(.center)
+                        } else {
+                            Text("Get 7 days free, then $4.99/month")
+                                .font(.body)
+                                .foregroundColor(Color.theme.textSecondary)
+                                .multilineTextAlignment(.center)
+                        }
                         
                         Text("Or wait until Friday for your next free question")
                             .font(.caption)
@@ -358,9 +368,9 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showingSubscriptionBenefits) {
             SubscriptionBenefitsView(
-                onSubscribe: {
+                onSubscribe: { plan in
                     Task {
-                        await handleSubscription()
+                        await handleSubscription(plan: plan)
                     }
                 }
             )
@@ -433,10 +443,10 @@ struct HomeView: View {
     }
     
     // MARK: - Handle Subscription
-    private func handleSubscription() async {
+    private func handleSubscription(plan: SubscriptionPlan) async {
         do {
             // Use the new trial flow for all subscription signups
-            let checkoutURL = try await subscriptionService.initiateTrialSetup()
+            let checkoutURL = try await subscriptionService.initiateTrialSetup(plan: plan)
             await MainActor.run {
                 UIApplication.shared.open(checkoutURL)
             }

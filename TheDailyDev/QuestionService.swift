@@ -35,7 +35,6 @@ class QuestionService: ObservableObject {
     /// Call this after user answers a question to refresh stats
     func invalidateProgressCache() {
         progressHistoryFetchTime = nil
-        cachedProgressHistory = nil
         cachedHasAnsweredToday = nil
         hasAnsweredTodayFetchTime = nil
         cachedStreak = nil
@@ -153,6 +152,11 @@ class QuestionService: ObservableObject {
             
             return response
         } catch {
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                print("ℹ️ Progress fetch cancelled (likely superseded by a newer request).")
+                return cachedProgressHistory ?? []
+            }
             print("❌ Failed to fetch user progress: \(error)")
             return cachedProgressHistory ?? [] // Return cached data if available
         }
@@ -174,7 +178,7 @@ class QuestionService: ObservableObject {
                 answer: QuestionAnswer(correctOptionId: selectedAnswer, correctText: nil),
                 isCorrect: isCorrect,
                 timeTaken: timeTaken,
-                completedAt: ISO8601DateFormatter().string(from: Date())
+                completedAt: DateUtils.iso8601WithFractional.string(from: Date())
             )
             
             try await SupabaseManager.shared.client
@@ -209,7 +213,7 @@ class QuestionService: ObservableObject {
                 answer: QuestionAnswer(correctOptionId: nil, correctText: matchesString),
                 isCorrect: isCorrect,
                 timeTaken: timeTaken,
-                completedAt: ISO8601DateFormatter().string(from: Date())
+                completedAt: DateUtils.iso8601WithFractional.string(from: Date())
             )
             
             try await SupabaseManager.shared.client
@@ -242,7 +246,7 @@ class QuestionService: ObservableObject {
                 answer: QuestionAnswer(correctOptionId: nil, correctText: orderString),
                 isCorrect: isCorrect,
                 timeTaken: timeTaken,
-                completedAt: ISO8601DateFormatter().string(from: Date())
+                completedAt: DateUtils.iso8601WithFractional.string(from: Date())
             )
             
             try await SupabaseManager.shared.client
@@ -340,8 +344,8 @@ class QuestionService: ObservableObject {
         
         // Sort by completion date (most recent first)
         let sortedProgress = progressHistory.sorted { progress1, progress2 in
-            let date1 = ISO8601DateFormatter().date(from: progress1.completedAt) ?? Date.distantPast
-            let date2 = ISO8601DateFormatter().date(from: progress2.completedAt) ?? Date.distantPast
+            let date1 = progress1.completedDate ?? Date.distantPast
+            let date2 = progress2.completedDate ?? Date.distantPast
             return date1 > date2
         }
         
@@ -354,7 +358,7 @@ class QuestionService: ObservableObject {
                 break // Streak ends when we hit an incorrect answer
             }
             
-            let progressDate = ISO8601DateFormatter().date(from: progress.completedAt) ?? Date.distantPast
+            let progressDate = progress.completedDate ?? Date.distantPast
             
             // Check if this progress is within the expected date range for the streak
             if calendar.isDate(progressDate, inSameDayAs: currentDate) ||

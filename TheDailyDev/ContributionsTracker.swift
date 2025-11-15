@@ -87,17 +87,15 @@ struct ContributionsTracker: View {
     // MARK: - Computed Properties
     private var availableYears: [Int] {
         let years = Set<Int>(progressHistory.compactMap { progress in
-            let dateString = String(progress.completedAt.prefix(10))
-            guard let date = dateFormatter.date(from: dateString) else { return nil }
+            guard let date = progress.completedDayLocal else { return nil }
             return calendar.component(.year, from: date)
         })
         return Array(years).sorted(by: >)
     }
     
     private var filteredProgressHistory: [UserProgressWithQuestion] {
-        return progressHistory.filter { progress in
-            let dateString = String(progress.completedAt.prefix(10))
-            guard let date = dateFormatter.date(from: dateString) else { return false }
+        progressHistory.filter { progress in
+            guard let date = progress.completedDayLocal else { return false }
             return calendar.component(.year, from: date) == selectedYear
         }
     }
@@ -324,10 +322,9 @@ struct ContributionsGrid: View {
     
     // Find progress for a specific date
     private func progressForDate(_ date: Date) -> UserProgressWithQuestion? {
-        let dateString = dateFormatter.string(from: date)
-        return progressHistory.first { progress in
-            let progressDate = dateFormatter.date(from: String(progress.completedAt.prefix(10))) ?? Date()
-            return dateFormatter.string(from: progressDate) == dateString
+        progressHistory.first { progress in
+            guard let progressDate = progress.completedDayLocal else { return false }
+            return calendar.isDate(progressDate, inSameDayAs: date)
         }
     }
 }
@@ -632,7 +629,7 @@ struct QuestionReviewView: View {
                                 Text("Completed:")
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                Text(formatDate(progress.completedAt))
+                                Text(formatDate(from: progress))
                                     .bold()
                             }
                         }
@@ -692,12 +689,11 @@ struct QuestionReviewView: View {
         return String(format: "%d:%02d", minutes, remainingSeconds)
     }
     
-    private func formatDate(_ dateString: String) -> String {
-        let isoFormatter = ISO8601DateFormatter()
-        if let date = isoFormatter.date(from: dateString) {
+    private func formatDate(from progress: UserProgressWithQuestion) -> String {
+        if let date = progress.completedDate {
             return dateFormatter.string(from: date)
         }
-        return dateString
+        return progress.completedAt
     }
 }
 

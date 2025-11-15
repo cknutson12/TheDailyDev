@@ -8,10 +8,14 @@
 import SwiftUI
 
 struct SubscriptionBenefitsView: View {
-    let onSubscribe: () -> Void
+    let onSubscribe: (SubscriptionPlan) -> Void
     let onSkip: (() -> Void)?
     
-    init(onSubscribe: @escaping () -> Void, onSkip: (() -> Void)? = nil) {
+    @State private var allPlans: [SubscriptionPlan] = []
+    @State private var selectedPlan: SubscriptionPlan?
+    @StateObject private var subscriptionService = SubscriptionService.shared
+    
+    init(onSubscribe: @escaping (SubscriptionPlan) -> Void, onSkip: (() -> Void)? = nil) {
         self.onSubscribe = onSubscribe
         self.onSkip = onSkip
     }
@@ -34,11 +38,35 @@ struct SubscriptionBenefitsView: View {
                             .foregroundColor(.white)
                         
                         // Description
-                        Text("Get 7 days free, then $7.99/month. Cancel anytime.")
-                            .font(.body)
-                            .foregroundColor(Color.theme.textSecondary)
-                            .multilineTextAlignment(.center)
+                        if let plan = selectedPlan {
+                            Text("Get \(plan.trialDays) days free, then \(plan.formattedPrice). Cancel anytime.")
+                                .font(.body)
+                                .foregroundColor(Color.theme.textSecondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        } else {
+                            Text("Get 7 days free, then choose your plan. Cancel anytime.")
+                                .font(.body)
+                                .foregroundColor(Color.theme.textSecondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        
+                        // Plan Selection
+                        if !allPlans.isEmpty {
+                            VStack(spacing: 12) {
+                                ForEach(allPlans) { plan in
+                                    PlanSelectionCard(
+                                        plan: plan,
+                                        isSelected: selectedPlan?.id == plan.id,
+                                        onSelect: {
+                                            selectedPlan = plan
+                                        }
+                                    )
+                                }
+                            }
                             .padding(.horizontal)
+                        }
                         
                         // Benefits List
                         VStack(alignment: .leading, spacing: 16) {
@@ -68,23 +96,12 @@ struct SubscriptionBenefitsView: View {
                         .padding()
                         .cardContainer()
                         
-                        // Price
-                        VStack(spacing: 8) {
-                            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                Text("$7.99")
-                                    .font(.system(size: 36, weight: .bold))
-                                    .foregroundColor(.white)
-                                Text("/month")
-                                    .font(.body)
-                                    .foregroundColor(Color.theme.textSecondary)
-                            }
-                            Text("7-day free trial • Auto-renews after trial")
-                                .font(.caption)
-                                .foregroundColor(Color.theme.textSecondary)
-                        }
-                        
                         // Subscribe Button
-                        Button(action: onSubscribe) {
+                        Button(action: {
+                            if let plan = selectedPlan ?? allPlans.first {
+                                onSubscribe(plan)
+                            }
+                        }) {
                             VStack(spacing: 4) {
                                 Text("Start My Free Trial")
                                     .bold()
@@ -94,6 +111,7 @@ struct SubscriptionBenefitsView: View {
                             }
                         }
                         .buttonStyle(PrimaryButtonStyle())
+                        .disabled(selectedPlan == nil && !allPlans.isEmpty)
                         
                         // Skip Button (if provided)
                         if let onSkip = onSkip {
@@ -109,9 +127,79 @@ struct SubscriptionBenefitsView: View {
                 .background(Color.theme.background)
                 .navigationTitle("")
                 .navigationBarTitleDisplayMode(.inline)
+                .task {
+                    // Fetch all plans for selection
+                    let plans = await subscriptionService.fetchAllPlans()
+                    await MainActor.run {
+                        self.allPlans = plans
+                        // Default to monthly plan
+                        self.selectedPlan = plans.first { $0.name == "monthly" }
+                    }
+                }
             }
         }
         .preferredColorScheme(.dark)
+    }
+}
+
+// MARK: - Plan Selection Card
+struct PlanSelectionCard: View {
+    let plan: SubscriptionPlan
+    let isSelected: Bool
+    let onSelect: () -> Void
+    
+    var body: some View {
+        Button(action: onSelect) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(plan.displayName ?? plan.name.capitalized)
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        
+                        if plan.billingPeriod == "year" {
+                            Text("SAVE 33%")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Theme.Colors.accentGreen)
+                                .cornerRadius(4)
+                        }
+                    }
+                    
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(plan.formattedPriceAmount)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                        Text("/\(plan.billingPeriod)")
+                            .font(.subheadline)
+                            .foregroundColor(Color.theme.textSecondary)
+                    }
+                    
+                    if plan.billingPeriod == "year" {
+                        Text("$\(String(format: "%.2f", plan.priceAmount / 12))/month")
+                            .font(.caption)
+                            .foregroundColor(Color.theme.textSecondary)
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title2)
+                    .foregroundColor(isSelected ? Theme.Colors.accentGreen : Color.theme.textSecondary)
+            }
+            .padding()
+            .background(isSelected ? Theme.Colors.accentGreen.opacity(0.1) : Theme.Colors.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
+                    .stroke(isSelected ? Theme.Colors.accentGreen : Theme.Colors.border, lineWidth: isSelected ? 2 : 1)
+            )
+            .cornerRadius(Theme.Metrics.cornerRadius)
+        }
     }
 }
 
@@ -119,7 +207,7 @@ struct SubscriptionBenefitsView: View {
 struct SubscriptionBenefitsView_Previews: PreviewProvider {
     static var previews: some View {
         SubscriptionBenefitsView(
-            onSubscribe: { print("Subscribe tapped") },
+            onSubscribe: { plan in print("Subscribe tapped: \(plan.name)") },
             onSkip: { print("Skip tapped") }
         )
     }

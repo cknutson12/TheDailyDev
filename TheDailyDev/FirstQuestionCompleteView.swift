@@ -5,6 +5,8 @@ struct FirstQuestionCompleteView: View {
     @StateObject private var subscriptionService = SubscriptionService.shared
     @State private var isLoading = false
     @State private var errorMessage = ""
+    @State private var allPlans: [SubscriptionPlan] = []
+    @State private var selectedPlan: SubscriptionPlan?
     
     var body: some View {
         ZStack {
@@ -48,33 +50,49 @@ struct FirstQuestionCompleteView: View {
                     .font(.title2)
                     .foregroundColor(Theme.Colors.textPrimary)
                 
-                // Trial info box
-                VStack(spacing: 12) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "gift.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(Theme.Colors.accentGreen)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("7 Days Free, Then $7.99/Month")
-                                .font(.headline)
-                                .foregroundColor(Theme.Colors.textPrimary)
-                            
-                            Text("Auto-renews after trial • Cancel anytime")
-                                .font(.caption)
-                                .foregroundColor(Theme.Colors.textSecondary)
+                // Plan Selection
+                if !allPlans.isEmpty {
+                    VStack(spacing: 12) {
+                        ForEach(allPlans) { plan in
+                            PlanSelectionCard(
+                                plan: plan,
+                                isSelected: selectedPlan?.id == plan.id,
+                                onSelect: {
+                                    selectedPlan = plan
+                                }
+                            )
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 32)
+                } else {
+                    // Fallback trial info box
+                    VStack(spacing: 12) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "gift.fill")
+                                .font(.system(size: 32))
+                                .foregroundColor(Theme.Colors.accentGreen)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("7 Days Free, Then $4.99/Month")
+                                    .font(.headline)
+                                    .foregroundColor(Theme.Colors.textPrimary)
+                                
+                                Text("Auto-renews after trial • Cancel anytime")
+                                    .font(.caption)
+                                    .foregroundColor(Theme.Colors.textSecondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(16)
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(Theme.Metrics.cornerRadius)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
+                            .stroke(Theme.Colors.accentGreen.opacity(0.3), lineWidth: 1)
+                    )
+                    .padding(.horizontal, 32)
                 }
-                .padding(16)
-                .background(Theme.Colors.surface)
-                .cornerRadius(Theme.Metrics.cornerRadius)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
-                        .stroke(Theme.Colors.accentGreen.opacity(0.3), lineWidth: 1)
-                )
-                .padding(.horizontal, 32)
                 
                 // Benefits list
                 VStack(alignment: .leading, spacing: 12) {
@@ -119,11 +137,19 @@ struct FirstQuestionCompleteView: View {
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(isLoading)
                     
-                    Text("You'll be charged $7.99/month after the trial ends")
-                        .font(.caption)
-                        .foregroundColor(Theme.Colors.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 20)
+                    if let plan = selectedPlan ?? allPlans.first {
+                        Text("You'll be charged \(plan.formattedPrice) after the trial ends")
+                            .font(.caption)
+                            .foregroundColor(Theme.Colors.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                    } else {
+                        Text("You'll be charged $4.99/month after the trial ends")
+                            .font(.caption)
+                            .foregroundColor(Theme.Colors.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                    }
                     
                     Button(action: {
                         dismiss()
@@ -138,14 +164,31 @@ struct FirstQuestionCompleteView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .task {
+            // Fetch all plans for selection
+            let plans = await subscriptionService.fetchAllPlans()
+            await MainActor.run {
+                self.allPlans = plans
+                // Default to monthly plan
+                self.selectedPlan = plans.first { $0.name == "monthly" }
+            }
+        }
     }
     
     private func startTrial() async {
         isLoading = true
         errorMessage = ""
         
+        guard let plan = selectedPlan ?? allPlans.first else {
+            await MainActor.run {
+                errorMessage = "Please select a plan"
+                isLoading = false
+            }
+            return
+        }
+        
         do {
-            let checkoutURL = try await subscriptionService.initiateTrialSetup()
+            let checkoutURL = try await subscriptionService.initiateTrialSetup(plan: plan)
             await MainActor.run {
                 isLoading = false
                 UIApplication.shared.open(checkoutURL)

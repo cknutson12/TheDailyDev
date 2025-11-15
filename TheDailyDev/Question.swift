@@ -168,3 +168,47 @@ struct CategoryPerformance: Identifiable {
     let totalAnswers: Int
     let percentage: Double
 }
+
+// MARK: - Date Helpers for Progress Models
+enum DateUtils {
+    static let iso8601WithFractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    
+    static let iso8601Basic: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+    
+    static func parseISODate(_ string: String) -> Date? {
+        if let date = iso8601WithFractional.date(from: string) {
+            return date
+        }
+        return iso8601Basic.date(from: string)
+    }
+}
+
+extension UserProgress {
+    var completedDate: Date? {
+        DateUtils.parseISODate(completedAt)
+    }
+    
+    var completedDayLocal: Date? {
+        guard let date = completedDate else { return nil }
+        return Calendar.current.startOfDay(for: date)
+    }
+}
+
+extension UserProgressWithQuestion {
+    var completedDate: Date? {
+        DateUtils.parseISODate(completedAt)
+    }
+    
+    var completedDayLocal: Date? {
+        guard let date = completedDate else { return nil }
+        return Calendar.current.startOfDay(for: date)
+    }
+}
