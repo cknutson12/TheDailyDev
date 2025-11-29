@@ -214,24 +214,40 @@ serve(async (req) => {
       // Find user by stripe_customer_id
       // IMPORTANT: If a record already exists, use it - don't try to re-link by email
       // This prevents linking to the wrong user when emails match but client_reference_id was correct
-      const { data: userSub } = await supabase
+      let { data: userSub } = await supabase
         .from('user_subscriptions')
         .select('user_id')
         .eq('stripe_customer_id', customerId)
         .single()
 
+      // If not found, wait a moment and retry (checkout.session.completed might still be processing)
       if (!userSub) {
-        console.error(`❌ No user_subscriptions record found for customer ${customerId}`)
-        console.error(`   This customer should have been linked during checkout.session.completed`)
-        console.error(`   The subscription will be orphaned - check if checkout.session.completed was processed`)
-        // Don't try to link by email here - if checkout.session.completed didn't create the record,
-        // it means client_reference_id wasn't available, and email matching could link to wrong user
-        return new Response(JSON.stringify({ 
-          received: true,
-          warning: `No user_subscriptions record found for customer ${customerId}. Check checkout.session.completed event.`
-        }), {
-          status: 200,
-        })
+        console.log(`⚠️ No user_subscriptions record found for customer ${customerId}, waiting for checkout.session.completed...`)
+        await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1 second
+        
+        // Retry lookup
+        const retryResult = await supabase
+          .from('user_subscriptions')
+          .select('user_id')
+          .eq('stripe_customer_id', customerId)
+          .single()
+        
+        if (retryResult.data) {
+          userSub = retryResult.data
+          console.log(`✅ Found user_subscriptions record on retry: ${userSub.user_id}`)
+        } else {
+          console.error(`❌ No user_subscriptions record found for customer ${customerId} after retry`)
+          console.error(`   This customer should have been linked during checkout.session.completed`)
+          console.error(`   The subscription will be orphaned - check if checkout.session.completed was processed`)
+          // Don't try to link by email here - if checkout.session.completed didn't create the record,
+          // it means client_reference_id wasn't available, and email matching could link to wrong user
+          return new Response(JSON.stringify({ 
+            received: true,
+            warning: `No user_subscriptions record found for customer ${customerId}. Check checkout.session.completed event.`
+          }), {
+            status: 200,
+          })
+        }
       }
 
       // Prepare update data
