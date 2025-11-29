@@ -67,6 +67,78 @@ struct SubscriptionSettingsView: View {
                         Spacer()
                             .frame(height: 20)
                         
+                        // MARK: - Legal Section
+                        Text("Legal")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+                        
+                        VStack(spacing: 12) {
+                            // Privacy Policy
+                            Button(action: {
+                                if let url = URL(string: Config.privacyPolicyURL) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }) {
+                                HStack {
+                                    Image(systemName: "hand.raised.fill")
+                                        .font(.title3)
+                                        .foregroundColor(Theme.Colors.accentGreen)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Privacy Policy")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                        Text("How we collect and use your data")
+                                            .font(.caption)
+                                            .foregroundColor(Color.theme.textSecondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "arrow.up.right.square")
+                                        .foregroundColor(Color.theme.textSecondary)
+                                }
+                                .padding()
+                                .cardContainer()
+                            }
+                            
+                            // Terms of Service (if you have one)
+                            if !Config.termsOfServiceURL.isEmpty {
+                                Button(action: {
+                                    if let url = URL(string: Config.termsOfServiceURL) {
+                                        UIApplication.shared.open(url)
+                                    }
+                                }) {
+                                    HStack {
+                                        Image(systemName: "doc.text.fill")
+                                            .font(.title3)
+                                            .foregroundColor(Theme.Colors.accentGreen)
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Terms of Service")
+                                                .font(.headline)
+                                                .foregroundColor(.white)
+                                            Text("Terms and conditions of use")
+                                                .font(.caption)
+                                                .foregroundColor(Color.theme.textSecondary)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "arrow.up.right.square")
+                                            .foregroundColor(Color.theme.textSecondary)
+                                    }
+                                    .padding()
+                                    .cardContainer()
+                                }
+                            }
+                        }
+                        
+                        Spacer()
+                            .frame(height: 20)
+                        
                         // MARK: - Subscription Section
                         Text("Subscription")
                             .font(.headline)

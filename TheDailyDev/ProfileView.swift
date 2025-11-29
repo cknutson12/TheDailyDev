@@ -13,6 +13,7 @@ struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var subscriptionService = SubscriptionService.shared
     @State private var progressHistory: [UserProgressWithQuestion] = []
+    @State private var allDailyChallenges: [DailyChallenge] = []
     @State private var isLoadingHistory = false
     @State private var userName: String = ""
     @State private var categoryPerformances: [CategoryPerformance] = []
@@ -77,8 +78,11 @@ struct ProfileView: View {
                                 .cardContainer()
                                 .padding(.horizontal)
                             } else {
-                                ContributionsTracker(progressHistory: progressHistory)
-                                    .padding(.horizontal)
+                                ContributionsTracker(
+                                    progressHistory: progressHistory,
+                                    allDailyChallenges: allDailyChallenges
+                                )
+                                .padding(.horizontal)
                             }
                             
                             if isLoadingCategories {
@@ -150,11 +154,15 @@ struct ProfileView: View {
                 .accessibilityIdentifier("SettingsButton")
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SubscriptionSuccess"))) { _ in
+            // Dismiss subscription benefits view when subscription succeeds
+            showingSubscriptionBenefits = false
+        }
         .sheet(isPresented: $showingSubscriptionBenefits) {
             SubscriptionBenefitsView(
-                onSubscribe: { plan in
+                onSubscribe: { plan, skipTrial in
                     Task {
-                        await handleSubscription(plan: plan)
+                        await handleSubscription(plan: plan, skipTrial: skipTrial)
                     }
                 }
             )
@@ -174,14 +182,14 @@ struct ProfileView: View {
     }
     
     // MARK: - Handle Subscription
-    private func handleSubscription(plan: SubscriptionPlan) async {
+    private func handleSubscription(plan: SubscriptionPlan, skipTrial: Bool = false) async {
         do {
-            let checkoutURL = try await subscriptionService.createCheckoutSession(plan: plan)
+            let checkoutURL = try await subscriptionService.getCheckoutURL(plan: plan, skipTrial: skipTrial)
             await MainActor.run {
                 UIApplication.shared.open(checkoutURL)
             }
         } catch {
-            print("Failed to create checkout session: \(error)")
+            print("Failed to initiate trial setup: \(error)")
         }
     }
     
@@ -213,10 +221,15 @@ struct ProfileView: View {
     private func loadProgressHistory() async {
         isLoadingHistory = true
         
-        let history = await QuestionService.shared.fetchUserProgressHistory()
+        // Fetch both progress history and all daily challenges in parallel
+        async let history = QuestionService.shared.fetchUserProgressHistory()
+        async let challenges = QuestionService.shared.fetchAllDailyChallenges()
+        
+        let (progressHistoryResult, challengesResult) = await (history, challenges)
         
         await MainActor.run {
-            self.progressHistory = history
+            self.progressHistory = progressHistoryResult
+            self.allDailyChallenges = challengesResult
             self.isLoadingHistory = false
         }
     }
@@ -236,6 +249,14 @@ struct ProfileView: View {
     // MARK: - Refresh Profile Data (Pull-to-Refresh)
     private func refreshProfileData() async {
         print("🔄 Profile manual refresh triggered")
+        // Force refresh both progress history and daily challenges
+        let history = await QuestionService.shared.fetchUserProgressHistory(forceRefresh: true)
+        let challenges = await QuestionService.shared.fetchAllDailyChallenges(forceRefresh: true)
+        
+        await MainActor.run {
+            self.progressHistory = history
+            self.allDailyChallenges = challenges
+        }
         
         // Invalidate caches to force fresh data
         QuestionService.shared.invalidateProgressCache()

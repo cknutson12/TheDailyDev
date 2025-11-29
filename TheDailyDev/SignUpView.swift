@@ -141,11 +141,15 @@ struct SignUpView: View {
                 Spacer()
             }
             .padding()
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SubscriptionSuccess"))) { _ in
+                // Dismiss subscription benefits view when subscription succeeds
+                showingSubscriptionBenefits = false
+            }
             .sheet(isPresented: $showingSubscriptionBenefits) {
                 SubscriptionBenefitsView(
-                    onSubscribe: { plan in
+                    onSubscribe: { plan, skipTrial in
                         Task {
-                            await handleSubscription(plan: plan)
+                            await handleSubscription(plan: plan, skipTrial: skipTrial)
                         }
                     },
                     onSkip: {
@@ -171,10 +175,10 @@ struct SignUpView: View {
     }
     
     // MARK: - Handle Subscription
-    private func handleSubscription(plan: SubscriptionPlan) async {
+    private func handleSubscription(plan: SubscriptionPlan, skipTrial: Bool = false) async {
         do {
-            print("🔄 Creating Stripe checkout session...")
-            let checkoutURL = try await subscriptionService.createCheckoutSession(plan: plan)
+            print("🔄 Opening Stripe checkout...")
+            let checkoutURL = try await subscriptionService.getCheckoutURL(plan: plan, skipTrial: skipTrial)
             print("✅ Checkout session created: \(checkoutURL)")
             
             await MainActor.run {

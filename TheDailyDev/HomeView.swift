@@ -366,11 +366,15 @@ struct HomeView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SubscriptionSuccess"))) { _ in
+            // Dismiss subscription benefits view when subscription succeeds
+            showingSubscriptionBenefits = false
+        }
         .sheet(isPresented: $showingSubscriptionBenefits) {
             SubscriptionBenefitsView(
-                onSubscribe: { plan in
+                onSubscribe: { plan, skipTrial in
                     Task {
-                        await handleSubscription(plan: plan)
+                        await handleSubscription(plan: plan, skipTrial: skipTrial)
                     }
                 }
             )
@@ -443,10 +447,10 @@ struct HomeView: View {
     }
     
     // MARK: - Handle Subscription
-    private func handleSubscription(plan: SubscriptionPlan) async {
+    private func handleSubscription(plan: SubscriptionPlan, skipTrial: Bool = false) async {
         do {
             // Use the new trial flow for all subscription signups
-            let checkoutURL = try await subscriptionService.initiateTrialSetup(plan: plan)
+            let checkoutURL = try await subscriptionService.getCheckoutURL(plan: plan, skipTrial: skipTrial)
             await MainActor.run {
                 UIApplication.shared.open(checkoutURL)
             }

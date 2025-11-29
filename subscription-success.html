@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subscription Success - The Daily Dev</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a2e1a 100%);
+            color: #fff;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+        }
+        .spinner {
+            border: 3px solid rgba(76, 175, 80, 0.3);
+            border-top: 3px solid #4CAF50;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        h1 {
+            margin: 0 0 1rem;
+            color: #4CAF50;
+        }
+        p {
+            color: #aaa;
+            margin: 0.5rem 0;
+        }
+        .error {
+            color: #f44336;
+            margin-top: 1rem;
+        }
+        .link {
+            color: #4CAF50;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <h1>Redirecting to app...</h1>
+        <p>Please wait while we redirect you back to The Daily Dev app.</p>
+        <p id="status">Opening app...</p>
+        <p id="error" class="error" style="display: none;"></p>
+        <p id="fallback" style="display: none;">
+            <a href="#" id="deepLink" class="link">Click here if the app doesn't open automatically</a>
+        </p>
+    </div>
+
+    <script>
+        (function() {
+            // Get session_id from URL query parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('session_id');
+            
+            // Construct deep link
+            const deepLink = sessionId 
+                ? `thedailydev://subscription-success?session_id=${encodeURIComponent(sessionId)}`
+                : 'thedailydev://subscription-success';
+            
+            console.log('Redirecting to:', deepLink);
+            
+            // Try to open the app
+            const startTime = Date.now();
+            window.location.href = deepLink;
+            
+            // Show fallback link after 2 seconds
+            setTimeout(() => {
+                document.getElementById('fallback').style.display = 'block';
+                document.getElementById('deepLink').href = deepLink;
+                document.getElementById('status').textContent = 'If the app didn\'t open, click the link below.';
+            }, 2000);
+            
+            // Detect if we're still on the page after 3 seconds (app didn't open)
+            setTimeout(() => {
+                const timeElapsed = Date.now() - startTime;
+                if (timeElapsed > 3000) {
+                    document.getElementById('error').style.display = 'block';
+                    document.getElementById('error').textContent = 'Unable to open app automatically. Please use the link above.';
+                }
+            }, 3000);
+        })();
+    </script>
+</body>
+</html>
+

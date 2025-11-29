@@ -26,9 +26,11 @@ class SupabaseManager {
     
     func requestPasswordReset(email: String) async throws {
         // Reset password for email - this sends a recovery email
+        // Use redirectTo to have Supabase redirect to your website after verification
+        // The token will be in the redirect URL query parameters
         try await client.auth.resetPasswordForEmail(
             email,
-            redirectTo: URL(string: "thedailydev://password-reset")
+            redirectTo: URL(string: "https://thedailydevweb.vercel.app/auth/reset")
         )
     }
 }

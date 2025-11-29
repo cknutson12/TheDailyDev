@@ -10,6 +10,7 @@ struct Question: Codable, Identifiable {
     let difficultyLevel: Int
     let category: String?
     let createdAt: String
+    let resourcesUrl: String?
     
     // Deprecated fields (kept for backward compatibility, not used by app)
     let questionType: String?
@@ -24,6 +25,7 @@ struct Question: Codable, Identifiable {
         case difficultyLevel = "difficulty_level"
         case category
         case createdAt = "created_at"
+        case resourcesUrl = "resources_url"
         case questionType = "question_type"
         case scheduledDate = "scheduled_date"
     }

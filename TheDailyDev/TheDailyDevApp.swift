@@ -63,17 +63,53 @@ struct TheDailyDevApp: App {
         if url.scheme == "thedailydev" && url.host == "password-reset" {
             print("🔑 Password reset received: \(url.absoluteString)")
             
+            // Extract token and type from query parameters
+            guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                  let queryItems = components.queryItems,
+                  let token = queryItems.first(where: { $0.name == "token" })?.value else {
+                print("❌ No token found in password reset URL")
+                await MainActor.run {
+                    passwordResetManager.setError(NSError(
+                        domain: "PasswordReset",
+                        code: 400,
+                        userInfo: [NSLocalizedDescriptionKey: "Invalid reset link. Missing token."]
+                    ))
+                }
+                return
+            }
+            
+            let type = queryItems.first(where: { $0.name == "type" })?.value ?? "recovery"
+            print("📋 Extracted token: \(token.prefix(20))...")
+            print("📋 Type: \(type)")
+            
+            // Construct Supabase verification URL from the token
+            // Supabase's session(from:) expects a URL like:
+            // https://project.supabase.co/auth/v1/verify?token=...&type=recovery
+            let supabaseURL = Config.supabaseURL
+            guard let verificationURL = URL(string: "\(supabaseURL)/auth/v1/verify?token=\(token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? token)&type=\(type)") else {
+                print("❌ Failed to construct Supabase verification URL")
+                await MainActor.run {
+                    passwordResetManager.setError(NSError(
+                        domain: "PasswordReset",
+                        code: 500,
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to process reset link."]
+                    ))
+                }
+                return
+            }
+            
             // Validate the token by attempting to establish a session
             // This is where Supabase validates the token server-side
             do {
-                // Attempt to establish session from the reset URL
+                // Attempt to establish session from the Supabase verification URL
                 // This validates the token: checks if it exists, hasn't expired, and hasn't been used
-                let session = try await SupabaseManager.shared.client.auth.session(from: url)
+                _ = try await SupabaseManager.shared.client.auth.session(from: verificationURL)
                 print("✅ Password reset token validated - session established")
                 
-                // Token is valid - show reset view
+                // Token is valid - store the original deep link URL for the reset view
+                // The reset view will use this URL to re-establish the session when updating password
                 await MainActor.run {
-                    passwordResetManager.setResetURL(url)
+                    passwordResetManager.setResetURL(verificationURL)
                 }
             } catch {
                 // Token validation failed - show error
@@ -85,33 +121,8 @@ struct TheDailyDevApp: App {
             return
         }
         
-        // Handle trial setup completion
-        if url.scheme == "thedailydev" && url.host == "trial-started" {
-            print("🎉 Trial setup started - completing subscription creation...")
-            
-            // Extract session_id from query parameters
-            if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-               let queryItems = components.queryItems,
-               let sessionIdItem = queryItems.first(where: { $0.name == "session_id" }),
-               let sessionId = sessionIdItem.value {
-                
-                print("📋 Session ID: \(sessionId)")
-                
-                do {
-                    // Complete the trial setup (create subscription with trial)
-                    try await subscriptionService.completeTrialSetup(sessionId: sessionId)
-                    print("✅ Trial subscription created successfully!")
-                    
-                    // Force refresh subscription status (bypass cache)
-                    _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
-                } catch {
-                    print("❌ Failed to complete trial setup: \(error)")
-                }
-            } else {
-                print("❌ No session_id found in trial-started URL")
-            }
-            return
-        }
+        // Note: trial-started handler removed - subscriptions are created directly via Stripe checkout
+        // The webhook handles creating the user_subscription record when checkout.session.completed fires
         
         // Handle Stripe return
         guard url.scheme == "thedailydev" else {
@@ -124,14 +135,38 @@ struct TheDailyDevApp: App {
         
         switch host {
         case "subscription-success":
-            print("✅ Subscription successful - fetching status...")
+            print("✅ Subscription successful - refreshing subscription status...")
+            
+            // Invalidate caches to force fresh data
+            subscriptionService.invalidateCache()
+            QuestionService.shared.invalidateProgressCache()
+            QuestionService.shared.invalidateQuestionCache()
+            
+            // Wait a moment for webhook to process checkout.session.completed
+            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+            
             // Force refresh - user just purchased!
             let subscription = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
             print("📊 Fetched subscription: \(subscription?.status ?? "none")")
+            
             if subscription != nil {
                 print("✅ Active subscription found!")
+                // Cache already invalidated, so next call will fetch fresh
             } else {
-                print("⚠️ No subscription found - webhook may not have processed yet")
+                print("⚠️ No subscription found - webhook may still be processing")
+                // Retry after another 3 seconds
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                let retrySubscription = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
+                if retrySubscription != nil {
+                    print("✅ Subscription found on retry!")
+                    // Refresh question access status
+                    _ = await QuestionService.shared.hasAnsweredToday()
+                }
+            }
+            
+            // Post notification to dismiss subscription views
+            await MainActor.run {
+                NotificationCenter.default.post(name: NSNotification.Name("SubscriptionSuccess"), object: nil)
             }
         case "subscription-updated":
             print("💳 Subscription updated via billing portal - refreshing...")

@@ -118,6 +118,27 @@ class QuestionService: ObservableObject {
         }
     }
     
+    // MARK: - Fetch All Daily Challenges
+    /// Fetches all daily challenges (answered and unanswered) for question history
+    func fetchAllDailyChallenges(forceRefresh: Bool = false) async -> [DailyChallenge] {
+        do {
+            // Fetch all daily challenges with their questions
+            // Order by challenge_date descending to show most recent first
+            let response: [DailyChallenge] = try await SupabaseManager.shared.client
+                .from("daily_challenges")
+                .select("*, question:questions(*)")
+                .order("challenge_date", ascending: false)
+                .execute()
+                .value
+            
+            print("✅ Fetched \(response.count) daily challenges")
+            return response
+        } catch {
+            print("❌ Failed to fetch daily challenges: \(error)")
+            return []
+        }
+    }
+    
     // MARK: - Fetch User Progress History
     func fetchUserProgressHistory(forceRefresh: Bool = false) async -> [UserProgressWithQuestion] {
         // Check cache first (24-hour cache for history)
@@ -171,6 +192,7 @@ class QuestionService: ObservableObject {
             
             print("🔐 Authenticated user ID: \(userId)")
             
+            // Save with actual completion time (when user actually answered)
             let progress = UserProgress(
                 id: UUID(),
                 userId: userId, // Use actual user ID
@@ -206,6 +228,7 @@ class QuestionService: ObservableObject {
             let matchesData = try JSONEncoder().encode(matches)
             let matchesString = String(data: matchesData, encoding: .utf8) ?? "{}"
             
+            // Save with actual completion time (when user actually answered)
             let progress = UserProgress(
                 id: UUID(),
                 userId: userId,
@@ -239,6 +262,7 @@ class QuestionService: ObservableObject {
             let orderData = try JSONEncoder().encode(orderIds)
             let orderString = String(data: orderData, encoding: .utf8) ?? "[]"
             
+            // Save with actual completion time (when user actually answered)
             let progress = UserProgress(
                 id: UUID(),
                 userId: userId,
@@ -339,35 +363,65 @@ class QuestionService: ObservableObject {
             print("🔄 Calculating fresh streak...")
         }
         
-        // Use cached progress history (will use its 24-hour cache)
+        // Fetch both progress history and daily challenges
         let progressHistory = await fetchUserProgressHistory()
+        let allChallenges = await fetchAllDailyChallenges()
         
-        // Sort by completion date (most recent first)
-        let sortedProgress = progressHistory.sorted { progress1, progress2 in
-            let date1 = progress1.completedDate ?? Date.distantPast
-            let date2 = progress2.completedDate ?? Date.distantPast
-            return date1 > date2
+        // Create a map of challenge_date -> question_id for quick lookup
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        
+        var challengeMap: [String: UUID] = [:]
+        for challenge in allChallenges {
+            challengeMap[challenge.challengeDate] = challenge.questionId
         }
         
+        // Create a map of (date, question_id) -> progress for quick lookup
+        // Only include correct answers
+        var progressMap: [String: UserProgressWithQuestion] = [:]
+        for progress in progressHistory {
+            guard let isCorrect = progress.isCorrect, isCorrect else { continue }
+            
+            if let progressDate = progress.completedDayLocal {
+                let dateKey = dateFormatter.string(from: progressDate)
+                let mapKey = "\(dateKey)|\(progress.questionId.uuidString)"
+                progressMap[mapKey] = progress
+            }
+        }
+        
+        // Calculate streak by checking consecutive days backwards from today
         var streak = 0
         let calendar = Calendar.current
         var currentDate = Date()
+        let dateFormatterLocal = DateFormatter()
+        dateFormatterLocal.dateFormat = "yyyy-MM-dd"
         
-        for progress in sortedProgress {
-            guard let isCorrect = progress.isCorrect, isCorrect else {
-                break // Streak ends when we hit an incorrect answer
-            }
+        // Check up to 365 days back (reasonable limit)
+        for _ in 0..<365 {
+            let dateString = dateFormatterLocal.string(from: currentDate)
             
-            let progressDate = progress.completedDate ?? Date.distantPast
-            
-            // Check if this progress is within the expected date range for the streak
-            if calendar.isDate(progressDate, inSameDayAs: currentDate) ||
-               calendar.isDate(progressDate, inSameDayAs: calendar.date(byAdding: .day, value: -1, to: currentDate) ?? currentDate) {
-                streak += 1
-                currentDate = calendar.date(byAdding: .day, value: -1, to: currentDate) ?? currentDate
-            } else {
+            // Get the question ID scheduled for this date
+            guard let scheduledQuestionId = challengeMap[dateString] else {
+                // No question scheduled for this date - streak ends
                 break
             }
+            
+            // Check if user answered the question scheduled for this date
+            let mapKey = "\(dateString)|\(scheduledQuestionId.uuidString)"
+            if progressMap[mapKey] != nil {
+                // User answered the question of the day - continue streak
+                streak += 1
+            } else {
+                // User didn't answer the question of the day - streak ends
+                break
+            }
+            
+            // Move to previous day
+            guard let previousDay = calendar.date(byAdding: .day, value: -1, to: currentDate) else {
+                break
+            }
+            currentDate = previousDay
         }
         
         // Cache the result (valid until midnight)

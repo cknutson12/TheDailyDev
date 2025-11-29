@@ -10,7 +10,7 @@ struct DropZoneView: View {
     @State private var isTargeted = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             // Target label
             Text(target.text)
                 .font(.body)
@@ -18,13 +18,13 @@ struct DropZoneView: View {
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
             
-            // Drop zone area
+            // Drop zone area - made bigger and more prominent
             ZStack {
-                // Background
+                // Background with larger hit area
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(
                         style: StrokeStyle(
-                            lineWidth: 2,
+                            lineWidth: 2.5,
                             dash: matchedItem == nil ? [8, 4] : []
                         )
                     )
@@ -33,11 +33,12 @@ struct DropZoneView: View {
                         RoundedRectangle(cornerRadius: 12)
                             .fill(
                                 matchedItem != nil
-                                    ? Theme.Colors.subtleBlue.opacity(0.1)
-                                    : (isTargeted ? Theme.Colors.accentGreen.opacity(0.1) : Color.clear)
+                                    ? Theme.Colors.subtleBlue.opacity(0.15)
+                                    : (isTargeted ? Theme.Colors.accentGreen.opacity(0.15) : Color.clear)
                             )
                     )
-                    .frame(height: 60)
+                    .frame(minHeight: 80) // Increased from 60 to 80
+                    .frame(maxWidth: .infinity) // Make it full width
                 
                 // Content
                 if let matched = matchedItem {
@@ -46,24 +47,32 @@ struct DropZoneView: View {
                         Text(matched.text)
                             .font(.body)
                             .foregroundColor(.white)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
                         
                         Spacer()
                         
                         Button(action: onRemove) {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundColor(Theme.Colors.stateIncorrect)
+                                .font(.title3)
                         }
                     }
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                 } else {
                     // Show placeholder
                     Text("Drop here")
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundColor(Theme.Colors.textSecondary)
+                        .padding(.vertical, 12)
                 }
             }
         }
+        .contentShape(Rectangle()) // Make entire area tappable/droppable
         .dropDestination(for: String.self) { items, location in
+            // Accept drop if any part of the dragged item touches the drop zone
             guard let itemId = items.first else { return false }
             return onDrop(itemId)
         } isTargeted: { targeted in

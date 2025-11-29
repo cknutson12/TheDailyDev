@@ -158,19 +158,29 @@ class SubscriptionService: ObservableObject {
                 .execute()
                 .value
             
-            if existing.isEmpty {
-                // Create the record with extracted name
-                _ = try await SupabaseManager.shared.client
-                    .from("user_subscriptions")
-                    .insert([
-                        "user_id": userId,
-                        "first_name": firstName,
-                        "last_name": lastName,
-                        "status": "inactive"
-                    ])
-                    .execute()
-                
-            } else {
+            // Use upsert to ensure only one record per user (handles race conditions)
+            // Build upsert data, only including non-nil values
+            var upsertData: [String: String] = [
+                "user_id": userId,
+                "status": "inactive"
+            ]
+            
+            // Only set name if we have it
+            if let firstName = firstName, !firstName.isEmpty {
+                upsertData["first_name"] = firstName
+            }
+            if let lastName = lastName, !lastName.isEmpty {
+                upsertData["last_name"] = lastName
+            }
+            
+            // Use upsert with conflict resolution on user_id
+            _ = try await SupabaseManager.shared.client
+                .from("user_subscriptions")
+                .upsert(upsertData, onConflict: "user_id")
+                .execute()
+            
+            // Update name if record exists and name is missing
+            if !existing.isEmpty {
                 // Record exists - update it if name is missing but now available
                 if let existingRecord = existing.first {
                     let needsUpdate = (existingRecord.firstName == nil || existingRecord.firstName?.isEmpty == true) && firstName != nil ||
@@ -316,80 +326,73 @@ class SubscriptionService: ObservableObject {
         return checkoutURL
     }
     
-    // MARK: - Initiate Trial Setup (Step 1: Collect Payment Method)
-    func initiateTrialSetup(plan: SubscriptionPlan? = nil) async throws -> URL {
-        guard let functionURL = getFunctionURL(functionName: "initiate-trial") else {
-            print("❌ Failed to get function URL")
-            throw SubscriptionError.invalidConfiguration
-        }
-        
-        let session = try await SupabaseManager.shared.client.auth.session
-        let userId = session.user.id.uuidString
-        let email = session.user.email ?? ""
-        
-        var request = URLRequest(url: functionURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(session.accessToken)",
-                        forHTTPHeaderField: "Authorization")
+    // MARK: - Get Checkout URL
+    /// Returns the pre-created Stripe checkout link with user identification appended for reliable linking
+    /// Uses client_reference_id (primary) and customer_email (fallback) to ensure webhook can match user
+    func getCheckoutURL(plan: SubscriptionPlan? = nil, skipTrial: Bool = false) async throws -> URL {
+        // Get the current authenticated user
+        let authSession = try await SupabaseManager.shared.client.auth.session
+        let userEmail = authSession.user.email ?? ""
+        let userId = authSession.user.id.uuidString
         
         // Use provided plan or fetch default monthly plan
         let planToUse: SubscriptionPlan
         if let providedPlan = plan {
             planToUse = providedPlan
         } else {
-            guard let fetchedPlan = await fetchCurrentPlan() else {
+            guard let fetchedPlan = await fetchCurrentPlan(forceRefresh: true) else {
                 throw SubscriptionError.invalidConfiguration
             }
             planToUse = fetchedPlan
         }
         
-        let body = [
-            "user_id": userId,
-            "email": email,
-            "price_id": planToUse.stripePriceId
-        ]
-        
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            print("❌ Invalid response type")
-            throw SubscriptionError.networkError
+        // Select the appropriate checkout link based on skipTrial flag
+        let checkoutURLString: String?
+        if skipTrial {
+            checkoutURLString = planToUse.checkoutLinkNoTrial
+        } else {
+            checkoutURLString = planToUse.checkoutLinkTrial
         }
         
-        guard httpResponse.statusCode == 200 else {
-            print("❌ Non-200 status code: \(httpResponse.statusCode)")
-            // Try to parse error message from response
-            if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let errorMessage = errorJson["error"] as? String {
-                print("❌ Error from server: \(errorMessage)")
-                if let details = errorJson["details"] as? String {
-                    print("❌ Error details: \(details)")
-                }
-            } else if let responseString = String(data: data, encoding: .utf8) {
-                print("❌ Response body: \(responseString)")
+        guard var urlString = checkoutURLString, !urlString.isEmpty else {
+            print("❌ No checkout link found for plan: \(planToUse.name), skipTrial: \(skipTrial)")
+            print("   Make sure to add checkout_link_trial and checkout_link_no_trial to subscription_plans table")
+            throw SubscriptionError.invalidConfiguration
+        }
+        
+        // Append query parameters for reliable user linking:
+        // 1. client_reference_id: Primary method - Stripe includes this in webhook events
+        // 2. customer_email: Pre-fills email and helps with fallback matching
+        let separator = urlString.contains("?") ? "&" : "?"
+        
+        // Add client_reference_id (most reliable - Stripe includes this in webhook events)
+        if let encodedUserId = userId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            urlString = "\(urlString)\(separator)client_reference_id=\(encodedUserId)"
+            print("🔗 Appending client_reference_id to checkout URL: \(userId)")
+        }
+        
+        // Add customer_email for pre-filling and fallback matching
+        if !userEmail.isEmpty {
+            if let encodedEmail = userEmail.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+                urlString = "\(urlString)&customer_email=\(encodedEmail)"
+                print("📧 Appending customer_email to checkout URL: \(userEmail)")
             }
-            throw SubscriptionError.networkError
         }
         
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            print("❌ Failed to parse JSON")
-            throw SubscriptionError.invalidResponse
+        guard let checkoutURL = URL(string: urlString) else {
+            print("❌ Invalid checkout URL string: \(urlString)")
+            throw SubscriptionError.invalidConfiguration
         }
         
-        guard let checkoutURLString = json["url"] as? String else {
-            print("❌ 'url' key not found in response")
-            throw SubscriptionError.invalidResponse
-        }
-        
-        guard let checkoutURL = URL(string: checkoutURLString) else {
-            print("❌ Invalid URL string: \(checkoutURLString)")
-            throw SubscriptionError.invalidResponse
-        }
-        
+        print("✅ Using checkout link for plan: \(planToUse.name), skipTrial: \(skipTrial), email: \(userEmail)")
         return checkoutURL
+    }
+    
+    // MARK: - Initiate Trial Setup (Deprecated - use getCheckoutURL instead)
+    /// Deprecated: Use getCheckoutURL instead which uses pre-created Stripe checkout links
+    @available(*, deprecated, message: "Use getCheckoutURL instead which uses pre-created checkout links")
+    func initiateTrialSetup(plan: SubscriptionPlan? = nil, skipTrial: Bool = false) async throws -> URL {
+        return try await getCheckoutURL(plan: plan, skipTrial: skipTrial)
     }
     
     // MARK: - Complete Trial Setup (Step 2: Create Subscription with Trial)

@@ -24,4 +24,18 @@ struct Config {
     static func getFunctionURL(functionName: String) -> URL? {
         return URL(string: "\(supabaseURL)/functions/v1/\(functionName)")
     }
+    
+    // MARK: - Legal URLs
+    // TODO: Replace with your actual URLs once you have them hosted
+    static var privacyPolicyURL: String {
+        // Replace with your actual privacy policy URL
+        // Example: "https://yourdomain.com/privacy-policy"
+        return "https://yourdomain.com/privacy-policy" // PLACEHOLDER - UPDATE THIS
+    }
+    
+    static var termsOfServiceURL: String {
+        // Replace with your actual terms of service URL, or return empty string if not available
+        // Example: "https://yourdomain.com/terms-of-service"
+        return "" // PLACEHOLDER - UPDATE THIS or leave empty if not available
+    }
 }

@@ -8,14 +8,13 @@
 import SwiftUI
 
 struct SubscriptionBenefitsView: View {
-    let onSubscribe: (SubscriptionPlan) -> Void
+    let onSubscribe: (SubscriptionPlan, Bool) -> Void // Plan and skipTrial flag
     let onSkip: (() -> Void)?
     
     @State private var allPlans: [SubscriptionPlan] = []
     @State private var selectedPlan: SubscriptionPlan?
     @StateObject private var subscriptionService = SubscriptionService.shared
-    
-    init(onSubscribe: @escaping (SubscriptionPlan) -> Void, onSkip: (() -> Void)? = nil) {
+    init(onSubscribe: @escaping (SubscriptionPlan, Bool) -> Void, onSkip: (() -> Void)? = nil) {
         self.onSubscribe = onSubscribe
         self.onSkip = onSkip
     }
@@ -32,20 +31,20 @@ struct SubscriptionBenefitsView: View {
                             .foregroundColor(Color.theme.accentGreen)
                         
                         // Title
-                        Text("Start Your Free Trial")
+                        Text("Subscribe")
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
                         
                         // Description
                         if let plan = selectedPlan {
-                            Text("Get \(plan.trialDays) days free, then \(plan.formattedPrice). Cancel anytime.")
+                            Text("Choose how you'd like to start. Cancel anytime.")
                                 .font(.body)
                                 .foregroundColor(Color.theme.textSecondary)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal)
                         } else {
-                            Text("Get 7 days free, then choose your plan. Cancel anytime.")
+                            Text("Choose your plan and how you'd like to start. Cancel anytime.")
                                 .font(.body)
                                 .foregroundColor(Color.theme.textSecondary)
                                 .multilineTextAlignment(.center)
@@ -96,22 +95,83 @@ struct SubscriptionBenefitsView: View {
                         .padding()
                         .cardContainer()
                         
-                        // Subscribe Button
-                        Button(action: {
-                            if let plan = selectedPlan ?? allPlans.first {
-                                onSubscribe(plan)
+                        // Subscription Buttons
+                        VStack(spacing: 12) {
+                            // Subscribe Now Button (Primary - Default)
+                            Button(action: {
+                                if let plan = selectedPlan ?? allPlans.first {
+                                    onSubscribe(plan, true) // skipTrial = true
+                                }
+                            }) {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.title3)
+                                    VStack(spacing: 4) {
+                                        Text("Subscribe Now")
+                                            .bold()
+                                        if let plan = selectedPlan ?? allPlans.first {
+                                            Text("Billing starts immediately • \(plan.formattedPrice)")
+                                                .font(.caption)
+                                                .opacity(0.8)
+                                        }
+                                    }
+                                }
+                                .foregroundColor(.black)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
                             }
-                        }) {
-                            VStack(spacing: 4) {
-                                Text("Start My Free Trial")
-                                    .bold()
-                                Text("No charge for 7 days")
+                            .buttonStyle(PrimaryButtonStyle())
+                            .disabled(selectedPlan == nil && !allPlans.isEmpty)
+                            
+                            // Divider
+                            HStack {
+                                Rectangle()
+                                    .fill(Color.theme.border)
+                                    .frame(height: 1)
+                                
+                                Text("OR")
                                     .font(.caption)
-                                    .opacity(0.8)
+                                    .foregroundColor(Color.theme.textSecondary)
+                                    .padding(.horizontal, 8)
+                                
+                                Rectangle()
+                                    .fill(Color.theme.border)
+                                    .frame(height: 1)
                             }
+                            .padding(.vertical, 4)
+                            
+                            // Start Free Trial Button (Secondary)
+                            Button(action: {
+                                if let plan = selectedPlan ?? allPlans.first {
+                                    onSubscribe(plan, false) // skipTrial = false
+                                }
+                            }) {
+                                HStack {
+                                    Image(systemName: "gift.fill")
+                                        .font(.title3)
+                                    VStack(spacing: 4) {
+                                        Text("Start Free Trial")
+                                            .bold()
+                                        if let plan = selectedPlan ?? allPlans.first {
+                                            Text("\(plan.trialDays) days free, then \(plan.formattedPrice)")
+                                                .font(.caption)
+                                                .opacity(0.8)
+                                        }
+                                    }
+                                }
+                                .foregroundColor(Theme.Colors.accentGreen)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Theme.Colors.surface)
+                                .cornerRadius(Theme.Metrics.cornerRadius)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
+                                        .stroke(Theme.Colors.accentGreen, lineWidth: 2)
+                                )
+                            }
+                            .disabled(selectedPlan == nil && !allPlans.isEmpty)
                         }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .disabled(selectedPlan == nil && !allPlans.isEmpty)
+                        .padding(.horizontal)
                         
                         // Skip Button (if provided)
                         if let onSkip = onSkip {
@@ -207,7 +267,9 @@ struct PlanSelectionCard: View {
 struct SubscriptionBenefitsView_Previews: PreviewProvider {
     static var previews: some View {
         SubscriptionBenefitsView(
-            onSubscribe: { plan in print("Subscribe tapped: \(plan.name)") },
+            onSubscribe: { plan, skipTrial in 
+                print("Subscribe tapped: \(plan.name), skipTrial: \(skipTrial)") 
+            },
             onSkip: { print("Skip tapped") }
         )
     }

@@ -13,19 +13,26 @@ class AuthManager: ObservableObject {
     static let shared = AuthManager()
     
     @Published var isAuthenticated = false
+    @Published var isCheckingAuth = true // Track if we're still checking auth status
     
     private init() {}
     
     // MARK: - Session Management
     func checkSession() async {
+        await MainActor.run {
+            isCheckingAuth = true
+        }
+        
         do {
             let _ = try await SupabaseManager.shared.client.auth.session
             await MainActor.run {
                 isAuthenticated = true
+                isCheckingAuth = false
             }
         } catch {
             await MainActor.run {
                 isAuthenticated = false
+                isCheckingAuth = false
             }
         }
     }
@@ -40,6 +47,7 @@ class AuthManager: ObservableObject {
             QuestionService.shared.todaysQuestion = nil
             QuestionService.shared.errorMessage = nil
             isAuthenticated = false
+            isCheckingAuth = false // Ensure we're not in checking state after sign out
         }
     }
     
@@ -54,11 +62,13 @@ class AuthManager: ObservableObject {
             
             await MainActor.run {
                 isAuthenticated = true
+                isCheckingAuth = false
             }
         } catch {
             print("❌ Failed to establish OAuth session: \(error)")
             await MainActor.run {
                 isAuthenticated = false
+                isCheckingAuth = false
             }
         }
     }

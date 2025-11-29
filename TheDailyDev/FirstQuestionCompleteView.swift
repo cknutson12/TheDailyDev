@@ -116,40 +116,88 @@ struct FirstQuestionCompleteView: View {
                 
                 // Buttons
                 VStack(spacing: 12) {
+                    // Subscribe Now Button (Primary - Default)
                     Button(action: {
-                        Task { await startTrial() }
+                        Task { 
+                            await startTrial(skipTrial: true) 
+                        }
                     }) {
                         if isLoading {
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle())
                                 .tint(.black)
                         } else {
-                            VStack(spacing: 4) {
-                                Text("Start My Free Trial")
-                                    .bold()
-                                    .font(.headline)
-                                Text("No charge for 7 days")
-                                    .font(.caption2)
-                                    .opacity(0.8)
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.title3)
+                                VStack(spacing: 4) {
+                                    Text("Subscribe Now")
+                                        .bold()
+                                        .font(.headline)
+                                    if let plan = selectedPlan ?? allPlans.first {
+                                        Text("Billing starts immediately • \(plan.formattedPrice)")
+                                            .font(.caption2)
+                                            .opacity(0.8)
+                                    }
+                                }
                             }
                         }
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .disabled(isLoading)
+                    .disabled(isLoading || (selectedPlan == nil && !allPlans.isEmpty))
                     
-                    if let plan = selectedPlan ?? allPlans.first {
-                        Text("You'll be charged \(plan.formattedPrice) after the trial ends")
+                    // Divider
+                    HStack {
+                        Rectangle()
+                            .fill(Theme.Colors.border)
+                            .frame(height: 1)
+                        
+                        Text("OR")
                             .font(.caption)
                             .foregroundColor(Theme.Colors.textSecondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 20)
-                    } else {
-                        Text("You'll be charged $4.99/month after the trial ends")
-                            .font(.caption)
-                            .foregroundColor(Theme.Colors.textSecondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, 8)
+                        
+                        Rectangle()
+                            .fill(Theme.Colors.border)
+                            .frame(height: 1)
                     }
+                    .padding(.vertical, 4)
+                    
+                    // Start Free Trial Button (Secondary)
+                    Button(action: {
+                        Task { 
+                            await startTrial(skipTrial: false) 
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "gift.fill")
+                                .font(.title3)
+                            VStack(spacing: 4) {
+                                Text("Start Free Trial")
+                                    .bold()
+                                    .font(.headline)
+                                if let plan = selectedPlan ?? allPlans.first {
+                                    Text("\(plan.trialDays) days free, then \(plan.formattedPrice)")
+                                        .font(.caption2)
+                                        .opacity(0.8)
+                                } else {
+                                    Text("7 days free, then billed monthly")
+                                        .font(.caption2)
+                                        .opacity(0.8)
+                                }
+                            }
+                        }
+                        .foregroundColor(Theme.Colors.accentGreen)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Theme.Colors.surface)
+                        .cornerRadius(Theme.Metrics.cornerRadius)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
+                                .stroke(Theme.Colors.accentGreen, lineWidth: 2)
+                        )
+                    }
+                    .disabled(isLoading || (selectedPlan == nil && !allPlans.isEmpty))
                     
                     Button(action: {
                         dismiss()
@@ -159,6 +207,7 @@ struct FirstQuestionCompleteView: View {
                             .foregroundColor(Theme.Colors.textSecondary)
                     }
                     .padding(.bottom, 16)
+                    .disabled(isLoading)
                 }
                 .padding(.horizontal, 32)
             }
@@ -175,9 +224,11 @@ struct FirstQuestionCompleteView: View {
         }
     }
     
-    private func startTrial() async {
-        isLoading = true
-        errorMessage = ""
+    private func startTrial(skipTrial: Bool = false) async {
+        await MainActor.run {
+            isLoading = true
+            errorMessage = ""
+        }
         
         guard let plan = selectedPlan ?? allPlans.first else {
             await MainActor.run {
@@ -188,7 +239,7 @@ struct FirstQuestionCompleteView: View {
         }
         
         do {
-            let checkoutURL = try await subscriptionService.initiateTrialSetup(plan: plan)
+            let checkoutURL = try await subscriptionService.getCheckoutURL(plan: plan, skipTrial: skipTrial)
             await MainActor.run {
                 isLoading = false
                 UIApplication.shared.open(checkoutURL)
@@ -196,7 +247,7 @@ struct FirstQuestionCompleteView: View {
             }
         } catch {
             await MainActor.run {
-                errorMessage = "Failed to start trial: \(error.localizedDescription)"
+                errorMessage = "Failed to start subscription: \(error.localizedDescription)"
                 isLoading = false
             }
         }

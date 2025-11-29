@@ -9,9 +9,10 @@ struct MatchingQuestionView: View {
     @State private var isCorrect = false
     @State private var timeStarted = Date()
     
-    init(question: Question, onComplete: (() -> Void)? = nil) {
+    init(question: Question, challengeDate: Date? = nil, onComplete: (() -> Void)? = nil) {
         self.question = question
         self.onComplete = onComplete
+        // challengeDate parameter kept for compatibility but not used
     }
     
     var draggableItems: [MatchingItem] {
@@ -108,18 +109,19 @@ struct MatchingQuestionView: View {
                 
                 // Draggable Items Section
                 if !unmatchedDraggables.isEmpty && !showResult {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 16) {
                         Text("Drag These:")
                             .font(.headline)
                             .foregroundColor(.white)
                         
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
+                            HStack(spacing: 16) {
                                 ForEach(unmatchedDraggables) { item in
                                     DraggableItemCard(item: item, isMatched: false)
                                         .draggable(item.id)
                                 }
                             }
+                            .padding(.vertical, 4) // Add vertical padding for easier grabbing
                         }
                     }
                     .cardContainer()
@@ -190,6 +192,30 @@ struct MatchingQuestionView: View {
                                         .stroke(Theme.Colors.border, lineWidth: 1)
                                 )
                                 .cornerRadius(8)
+                        }
+                        
+                        // Resources Link
+                        if let resourcesUrl = question.resourcesUrl, !resourcesUrl.isEmpty,
+                           let url = URL(string: resourcesUrl) {
+                            Link(destination: url) {
+                                HStack {
+                                    Text("Check out more resources")
+                                        .font(.body)
+                                        .foregroundColor(Theme.Colors.accentGreen)
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "arrow.up.right.square")
+                                        .foregroundColor(Theme.Colors.accentGreen)
+                                }
+                                .padding()
+                                .background(Theme.Colors.surface)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Theme.Colors.accentGreen.opacity(0.3), lineWidth: 1)
+                                )
+                                .cornerRadius(8)
+                            }
                         }
                     }
                     .padding()
@@ -296,6 +322,7 @@ struct MatchingQuestionView: View {
         difficultyLevel: 3,
         category: "Caching",
         createdAt: "",
+        resourcesUrl: nil,
         questionType: nil,
         scheduledDate: nil
     )

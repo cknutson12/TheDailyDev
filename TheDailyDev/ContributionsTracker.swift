@@ -3,16 +3,20 @@ import SwiftUI
 // MARK: - Contributions Tracker View
 struct ContributionsTracker: View {
     let progressHistory: [UserProgressWithQuestion]
+    let allDailyChallenges: [DailyChallenge]
     @State private var selectedDate: Date?
     @State private var showingQuestionReview = false
+    @State private var showingQuestion = false
     @State private var selectedProgress: UserProgressWithQuestion?
+    @State private var selectedQuestion: Question?
     @State private var selectedYear: Int
     
     private let calendar = Calendar.current
     private let dateFormatter = DateFormatter()
     
-    init(progressHistory: [UserProgressWithQuestion]) {
+    init(progressHistory: [UserProgressWithQuestion], allDailyChallenges: [DailyChallenge] = []) {
         self.progressHistory = progressHistory
+        self.allDailyChallenges = allDailyChallenges
         self.dateFormatter.dateFormat = "yyyy-MM-dd"
         self._selectedYear = State(initialValue: Calendar.current.component(.year, from: Date()))
     }
@@ -27,7 +31,9 @@ struct ContributionsTracker: View {
                 
                 Spacer()
                 
-                Text("\(filteredProgressHistory.count) answered")
+                let answeredCount = filteredProgressHistory.count
+                let totalCount = filteredChallenges.count
+                Text("\(answeredCount)/\(totalCount) answered")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -59,18 +65,26 @@ struct ContributionsTracker: View {
             HStack(spacing: 12) {
                 LegendItem(color: Theme.Colors.stateCorrect, text: "Correct")
                 LegendItem(color: Theme.Colors.stateIncorrect, text: "Incorrect")
-                LegendItem(color: .gray.opacity(0.3), text: "No data")
+                LegendItem(color: .gray.opacity(0.3), text: "Unanswered")
             }
             .padding(.bottom, 4)
             
             // Contributions Grid
             ContributionsGrid(
                 progressHistory: filteredProgressHistory,
+                allDailyChallenges: filteredChallenges,
                 selectedYear: selectedYear,
-                onDateSelected: { date, progress in
+                onDateSelected: { date, progress, question in
                     selectedDate = date
                     selectedProgress = progress
-                    showingQuestionReview = true
+                    selectedQuestion = question
+                    if progress != nil {
+                        // Answered question - show review
+                        showingQuestionReview = true
+                    } else if question != nil {
+                        // Unanswered question - show question view to answer
+                        showingQuestion = true
+                    }
                 }
             )
         }
@@ -82,14 +96,80 @@ struct ContributionsTracker: View {
                 QuestionReviewView(progress: selectedProgress, date: date)
             }
         }
+        .sheet(isPresented: $showingQuestion) {
+            if let question = selectedQuestion {
+                NavigationView {
+                    Group {
+                        if question.content.orderingItems != nil {
+                            OrderingQuestionView(
+                                question: question,
+                                onComplete: {
+                                    Task {
+                                        // Invalidate caches immediately after answering
+                                        QuestionService.shared.invalidateProgressCache()
+                                        SubscriptionService.shared.invalidateCache()
+                                    }
+                                    showingQuestion = false
+                                }
+                            )
+                        } else if question.content.matchingItems != nil {
+                            MatchingQuestionView(
+                                question: question,
+                                onComplete: {
+                                    Task {
+                                        // Invalidate caches immediately after answering
+                                        QuestionService.shared.invalidateProgressCache()
+                                        SubscriptionService.shared.invalidateCache()
+                                    }
+                                    showingQuestion = false
+                                }
+                            )
+                        } else {
+                            MultipleChoiceQuestionView(
+                                question: question,
+                                onComplete: {
+                                    Task {
+                                        // Invalidate caches immediately after answering
+                                        QuestionService.shared.invalidateProgressCache()
+                                        SubscriptionService.shared.invalidateCache()
+                                    }
+                                    showingQuestion = false
+                                }
+                            )
+                        }
+                    }
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Close") {
+                                showingQuestion = false
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     
     // MARK: - Computed Properties
     private var availableYears: [Int] {
-        let years = Set<Int>(progressHistory.compactMap { progress in
-            guard let date = progress.completedDayLocal else { return nil }
-            return calendar.component(.year, from: date)
-        })
+        // Get years from both progress history and daily challenges
+        var years = Set<Int>()
+        
+        // Add years from progress history
+        for progress in progressHistory {
+            if let date = progress.completedDayLocal {
+                years.insert(calendar.component(.year, from: date))
+            }
+        }
+        
+        // Add years from daily challenges
+        for challenge in allDailyChallenges {
+            if let date = parseDate(challenge.challengeDate) {
+                years.insert(calendar.component(.year, from: date))
+            }
+        }
+        
         return Array(years).sorted(by: >)
     }
     
@@ -98,6 +178,17 @@ struct ContributionsTracker: View {
             guard let date = progress.completedDayLocal else { return false }
             return calendar.component(.year, from: date) == selectedYear
         }
+    }
+    
+    private var filteredChallenges: [DailyChallenge] {
+        allDailyChallenges.filter { challenge in
+            guard let date = parseDate(challenge.challengeDate) else { return false }
+            return calendar.component(.year, from: date) == selectedYear
+        }
+    }
+    
+    private func parseDate(_ dateString: String) -> Date? {
+        dateFormatter.date(from: dateString)
     }
 }
 
@@ -123,14 +214,16 @@ struct LegendItem: View {
 // MARK: - Contributions Grid
 struct ContributionsGrid: View {
     let progressHistory: [UserProgressWithQuestion]
+    let allDailyChallenges: [DailyChallenge]
     let selectedYear: Int
-    let onDateSelected: (Date, UserProgressWithQuestion?) -> Void
+    let onDateSelected: (Date, UserProgressWithQuestion?, Question?) -> Void
     
     private let calendar = Calendar.current
     private let dateFormatter = DateFormatter()
     
-    init(progressHistory: [UserProgressWithQuestion], selectedYear: Int, onDateSelected: @escaping (Date, UserProgressWithQuestion?) -> Void) {
+    init(progressHistory: [UserProgressWithQuestion], allDailyChallenges: [DailyChallenge], selectedYear: Int, onDateSelected: @escaping (Date, UserProgressWithQuestion?, Question?) -> Void) {
         self.progressHistory = progressHistory
+        self.allDailyChallenges = allDailyChallenges
         self.selectedYear = selectedYear
         self.onDateSelected = onDateSelected
         self.dateFormatter.dateFormat = "yyyy-MM-dd"
@@ -195,12 +288,14 @@ struct ContributionsGrid: View {
                                     ForEach(Array(0..<weeksToShow), id: \.self) { week in
                                         if let date = getDateForGridPosition(week: week, day: day) {
                                             let progress = progressForDate(date)
+                                            let question = questionForDate(date)
                                             
                                             ContributionSquare(
                                                 date: date,
                                                 progress: progress,
+                                                hasQuestion: question != nil,
                                                 onTap: {
-                                                    onDateSelected(date, progress)
+                                                    onDateSelected(date, progress, question)
                                                 }
                                             )
                                             } else {
@@ -213,7 +308,7 @@ struct ContributionsGrid: View {
                                                         .cornerRadius(3)
                                                         .accessibilityIdentifier("ContributionSquare")
                                                         .onTapGesture {
-                                                            onDateSelected(date, nil)
+                                                            onDateSelected(date, nil, nil)
                                                         }
                                                 } else {
                                                     // Truly empty space for future dates
@@ -321,11 +416,29 @@ struct ContributionsGrid: View {
     }
     
     // Find progress for a specific date
+    // Matches progress to dates based on which question was scheduled for that date,
+    // not when the user actually answered it
     private func progressForDate(_ date: Date) -> UserProgressWithQuestion? {
-        progressHistory.first { progress in
-            guard let progressDate = progress.completedDayLocal else { return false }
-            return calendar.isDate(progressDate, inSameDayAs: date)
+        let dateString = dateFormatter.string(from: date)
+        
+        // Find which question was scheduled for this date
+        guard let challenge = allDailyChallenges.first(where: { $0.challengeDate == dateString }),
+              let scheduledQuestionId = challenge.question?.id else {
+            return nil
         }
+        
+        // Find if user has progress for this question (regardless of when they answered it)
+        return progressHistory.first { progress in
+            progress.questionId == scheduledQuestionId
+        }
+    }
+    
+    // Find question for a specific date
+    private func questionForDate(_ date: Date) -> Question? {
+        let dateString = dateFormatter.string(from: date)
+        return allDailyChallenges.first { challenge in
+            challenge.challengeDate == dateString
+        }?.question
     }
 }
 
@@ -333,6 +446,7 @@ struct ContributionsGrid: View {
 struct ContributionSquare: View {
     let date: Date
     let progress: UserProgressWithQuestion?
+    let hasQuestion: Bool
     let onTap: () -> Void
     
     private let calendar = Calendar.current
@@ -349,14 +463,17 @@ struct ContributionSquare: View {
     }
     
     private var squareColor: Color {
-        guard let progress = progress else {
-            return .gray.opacity(0.3)
-        }
-        
-        if let isCorrect = progress.isCorrect {
+        // If answered, show correct/incorrect color
+        if let progress = progress, let isCorrect = progress.isCorrect {
             return isCorrect ? Theme.Colors.stateCorrect : Theme.Colors.stateIncorrect
         }
         
+        // If unanswered but has question, show gray (unanswered)
+        if hasQuestion {
+            return .gray.opacity(0.3)
+        }
+        
+        // No question for this date
         return .gray.opacity(0.3)
     }
 }
@@ -612,30 +729,54 @@ struct QuestionReviewView: View {
                             }
                         }
                         
-                        // Stats
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Stats")
-                                .font(.headline)
-                            
-                            HStack {
-                                Text("Time taken:")
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Text(formatTime(progress.timeTaken ?? 0))
-                                    .bold()
-                            }
-                            
-                            HStack {
-                                Text("Completed:")
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Text(formatDate(from: progress))
-                                    .bold()
+                        // Resources Link
+                        if let resourcesUrl = question.resourcesUrl, !resourcesUrl.isEmpty,
+                           let url = URL(string: resourcesUrl) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Check out more resources:")
+                                    .font(.headline)
+                                
+                                Link(destination: url) {
+                                    HStack {
+                                        Text(resourcesUrl)
+                                            .font(.body)
+                                            .foregroundColor(Theme.Colors.accentGreen)
+                                            .lineLimit(2)
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "arrow.up.right.square")
+                                            .foregroundColor(Theme.Colors.accentGreen)
+                                    }
+                                    .padding()
+                                    .background(Color.gray.opacity(0.1))
+                                    .cornerRadius(8)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Theme.Colors.accentGreen.opacity(0.3), lineWidth: 1)
+                                    )
+                                }
                             }
                         }
-                        .padding()
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(8)
+                        
+                        // Stats
+                        if let timeTaken = progress.timeTaken, timeTaken > 0 {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Stats")
+                                    .font(.headline)
+                                
+                                HStack {
+                                    Text("Time taken:")
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                    Text(formatTime(timeTaken))
+                                        .bold()
+                                }
+                            }
+                            .padding()
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(8)
+                        }
                         
                     } else {
                         // No question data - just show the date
@@ -688,15 +829,8 @@ struct QuestionReviewView: View {
         let remainingSeconds = seconds % 60
         return String(format: "%d:%02d", minutes, remainingSeconds)
     }
-    
-    private func formatDate(from progress: UserProgressWithQuestion) -> String {
-        if let date = progress.completedDate {
-            return dateFormatter.string(from: date)
-        }
-        return progress.completedAt
-    }
 }
 
 #Preview {
-    ContributionsTracker(progressHistory: [])
+    ContributionsTracker(progressHistory: [], allDailyChallenges: [])
 }

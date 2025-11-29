@@ -8,9 +8,10 @@ struct MultipleChoiceQuestionView: View {
     @State private var isCorrect = false
     @State private var timeStarted = Date()
     
-    init(question: Question, onComplete: (() -> Void)? = nil) {
+    init(question: Question, challengeDate: Date? = nil, onComplete: (() -> Void)? = nil) {
         self.question = question
         self.onComplete = onComplete
+        // challengeDate parameter kept for compatibility but not used
     }
     
     var body: some View {
@@ -115,6 +116,30 @@ struct MultipleChoiceQuestionView: View {
                                     .stroke(Theme.Colors.border, lineWidth: 1)
                             )
                             .cornerRadius(8)
+                    }
+                    
+                    // Resources Link
+                    if let resourcesUrl = question.resourcesUrl, !resourcesUrl.isEmpty,
+                       let url = URL(string: resourcesUrl) {
+                        Link(destination: url) {
+                            HStack {
+                                Text("Check out more resources")
+                                    .font(.body)
+                                    .foregroundColor(Theme.Colors.accentGreen)
+                                
+                                Spacer()
+                                
+                                Image(systemName: "arrow.up.right.square")
+                                    .foregroundColor(Theme.Colors.accentGreen)
+                            }
+                            .padding()
+                            .background(Theme.Colors.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Theme.Colors.accentGreen.opacity(0.3), lineWidth: 1)
+                            )
+                            .cornerRadius(8)
+                        }
                     }
                 }
                 .padding()
@@ -249,6 +274,7 @@ struct OptionButton: View {
         difficultyLevel: 2,
         category: "Load Balancing",
         createdAt: "",
+        resourcesUrl: nil,
         questionType: nil,
         scheduledDate: nil
     )

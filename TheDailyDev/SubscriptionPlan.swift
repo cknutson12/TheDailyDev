@@ -12,6 +12,8 @@ struct SubscriptionPlan: Codable, Identifiable {
     let trialDays: Int
     let displayName: String?
     let description: String?
+    let checkoutLinkTrial: String?
+    let checkoutLinkNoTrial: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -24,6 +26,8 @@ struct SubscriptionPlan: Codable, Identifiable {
         case trialDays = "trial_days"
         case displayName = "display_name"
         case description
+        case checkoutLinkTrial = "checkout_link_trial"
+        case checkoutLinkNoTrial = "checkout_link_no_trial"
     }
     
     // MARK: - Computed Properties

@@ -25,5 +25,7 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSPrivacyPolicyURL</key>
+	<string>https://yourdomain.com/privacy-policy</string>
 </dict>
 </plist>

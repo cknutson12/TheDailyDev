@@ -8,7 +8,48 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
-            if authManager.isAuthenticated || isLoggedIn {
+            // Show loading screen while checking authentication
+            if authManager.isCheckingAuth {
+                ZStack {
+                    Color.theme.background.ignoresSafeArea()
+                    
+                    VStack(spacing: 20) {
+                        Text("The Daily Dev")
+                            .font(.system(size: 42, weight: .heavy, design: .monospaced))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [
+                                        Theme.Colors.accentGreen,
+                                        Theme.Colors.accentGreen.opacity(0.75),
+                                        Theme.Colors.subtleBlue.opacity(0.9)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .overlay(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.35),
+                                        Color.clear
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                                .mask(
+                                    Text("The Daily Dev")
+                                        .font(.system(size: 42, weight: .heavy, design: .monospaced))
+                                )
+                            )
+                            .shadow(color: Theme.Colors.accentGreen.opacity(0.4), radius: 12, x: 0, y: 8)
+                            .shadow(color: Color.black.opacity(0.85), radius: 20, x: 0, y: 18)
+                        
+                        ProgressView()
+                            .tint(Theme.Colors.accentGreen)
+                            .scaleEffect(1.2)
+                    }
+                }
+            } else if authManager.isAuthenticated || isLoggedIn {
                 HomeView(isLoggedIn: $isLoggedIn)
             } else {
                 VStack(spacing: 20) {
