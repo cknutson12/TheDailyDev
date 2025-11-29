@@ -4,7 +4,8 @@ import Supabase
 struct ResetPasswordView: View {
     @Environment(\.dismiss) private var dismiss
     
-    let resetURL: URL
+    let resetCode: String
+    
     @State private var newPassword = ""
     @State private var confirmPassword = ""
     @State private var isLoading = false
@@ -165,19 +166,35 @@ struct ResetPasswordView: View {
     }
     
     private func validateToken() async {
-        // Token was already validated in TheDailyDevApp when establishing session
-        // But we verify again here to ensure the session is still valid
+        // Code was already validated in TheDailyDevApp when establishing session
+        // Check if we have a valid session instead of re-exchanging the code
+        // (codes can only be exchanged once)
         do {
-            let session = try await SupabaseManager.shared.client.auth.session(from: resetURL)
+            // Check if there's an active session (established by the code exchange)
+            _ = try await SupabaseManager.shared.client.auth.session
+            print("✅ Valid session found - code was already validated")
+            
             await MainActor.run {
                 tokenValid = true
                 isValidatingToken = false
             }
         } catch {
-            await MainActor.run {
-                tokenValid = false
-                isValidatingToken = false
-                message = "This password reset link is invalid or has expired. Please request a new one."
+            // No session found - try to exchange the code one more time as fallback
+            print("⚠️ No active session found, attempting code exchange...")
+            do {
+                _ = try await SupabaseManager.shared.client.auth.exchangeCodeForSession(authCode: resetCode)
+                print("✅ Code exchange successful")
+                await MainActor.run {
+                    tokenValid = true
+                    isValidatingToken = false
+                }
+            } catch {
+                print("❌ Code validation failed: \(error)")
+                await MainActor.run {
+                    tokenValid = false
+                    isValidatingToken = false
+                    message = "This password reset link is invalid or has expired. Please request a new one."
+                }
             }
         }
     }
@@ -203,14 +220,28 @@ struct ResetPasswordView: View {
         message = ""
         
         do {
-            // Re-establish session from URL to ensure token is still valid
-            // This is a security check - ensures token hasn't been invalidated
-            _ = try await SupabaseManager.shared.client.auth.session(from: resetURL)
+            // Check if we have a valid session (from the code exchange)
+            // If not, try to exchange the code one more time
+            var hasSession = false
+            do {
+                _ = try await SupabaseManager.shared.client.auth.session
+                hasSession = true
+                print("✅ Using existing session for password update")
+            } catch {
+                print("⚠️ No session found, attempting code exchange...")
+                _ = try await SupabaseManager.shared.client.auth.exchangeCodeForSession(authCode: resetCode)
+                hasSession = true
+                print("✅ Code exchange successful")
+            }
+            
+            guard hasSession else {
+                throw NSError(domain: "PasswordReset", code: 401, userInfo: [NSLocalizedDescriptionKey: "No valid session"])
+            }
             
             // Update password using the validated session
             try await SupabaseManager.shared.client.auth.update(user: UserAttributes(password: newPassword))
             
-            // Sign out after password update (token is now invalidated)
+            // Sign out after password update (code is now invalidated)
             try await SupabaseManager.shared.client.auth.signOut()
             
             await MainActor.run {

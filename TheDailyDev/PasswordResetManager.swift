@@ -6,14 +6,14 @@ class PasswordResetManager: ObservableObject {
     static let shared = PasswordResetManager()
     
     @Published var showingResetView = false
-    @Published var resetURL: URL?
+    @Published var resetCode: String?
     @Published var errorMessage: String?
     @Published var showingError = false
     
     private init() {}
     
-    func setResetURL(_ url: URL) {
-        resetURL = url
+    func setResetCode(_ code: String) {
+        resetCode = code
         errorMessage = nil
         showingError = false
         showingResetView = true
@@ -23,12 +23,12 @@ class PasswordResetManager: ObservableObject {
         errorMessage = getErrorMessage(for: error)
         showingError = true
         showingResetView = false
-        resetURL = nil
+        resetCode = nil
     }
     
     func dismiss() {
         showingResetView = false
-        resetURL = nil
+        resetCode = nil
         errorMessage = nil
         showingError = false
     }

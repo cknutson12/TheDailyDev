@@ -21,8 +21,8 @@ struct TheDailyDevApp: App {
                     }
                 }
                 .sheet(isPresented: $passwordResetManager.showingResetView) {
-                    if let resetURL = passwordResetManager.resetURL {
-                        ResetPasswordView(resetURL: resetURL)
+                    if let resetCode = passwordResetManager.resetCode {
+                        ResetPasswordView(resetCode: resetCode)
                     }
                 }
                 .alert("Password Reset Error", isPresented: $passwordResetManager.showingError) {
@@ -63,57 +63,76 @@ struct TheDailyDevApp: App {
         if url.scheme == "thedailydev" && url.host == "password-reset" {
             print("🔑 Password reset received: \(url.absoluteString)")
             
-            // Extract token and type from query parameters
+            // Extract code from query parameters
+            // Supabase redirects with a 'code' parameter, but HTML might pass it as 'token'
             guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-                  let queryItems = components.queryItems,
-                  let token = queryItems.first(where: { $0.name == "token" })?.value else {
-                print("❌ No token found in password reset URL")
+                  let queryItems = components.queryItems else {
+                print("❌ No query parameters found in password reset URL")
                 await MainActor.run {
                     passwordResetManager.setError(NSError(
                         domain: "PasswordReset",
                         code: 400,
-                        userInfo: [NSLocalizedDescriptionKey: "Invalid reset link. Missing token."]
+                        userInfo: [NSLocalizedDescriptionKey: "Invalid reset link. Missing parameters."]
                     ))
                 }
                 return
             }
             
-            let type = queryItems.first(where: { $0.name == "type" })?.value ?? "recovery"
-            print("📋 Extracted token: \(token.prefix(20))...")
-            print("📋 Type: \(type)")
+            // Check for 'code' parameter first, then fallback to 'token' (if it's a UUID, not PKCE)
+            var authCode: String?
             
-            // Construct Supabase verification URL from the token
-            // Supabase's session(from:) expects a URL like:
-            // https://project.supabase.co/auth/v1/verify?token=...&type=recovery
-            let supabaseURL = Config.supabaseURL
-            guard let verificationURL = URL(string: "\(supabaseURL)/auth/v1/verify?token=\(token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? token)&type=\(type)") else {
-                print("❌ Failed to construct Supabase verification URL")
+            // First try 'code' parameter
+            if let code = queryItems.first(where: { $0.name == "code" })?.value {
+                authCode = code
+                print("📋 Extracted code: \(code.prefix(20))...")
+            } else if let token = queryItems.first(where: { $0.name == "token" })?.value {
+                // If token is a UUID (not a PKCE token), treat it as a code
+                // PKCE tokens start with "pkce_", UUIDs are 36 chars with dashes
+                print("📋 Found token parameter: \(token.prefix(20))... (length: \(token.count))")
+                if !token.hasPrefix("pkce_") && token.count == 36 && token.contains("-") {
+                    authCode = token
+                    print("✅ Token is a UUID - treating as code")
+                } else {
+                    print("⚠️ Token doesn't match UUID format - ignoring")
+                }
+            } else {
+                print("⚠️ No 'code' or 'token' parameter found in query items")
+                for item in queryItems {
+                    print("   - \(item.name): \(item.value ?? "nil")")
+                }
+            }
+            
+            guard let code = authCode else {
+                print("❌ No valid code found in password reset URL")
                 await MainActor.run {
                     passwordResetManager.setError(NSError(
                         domain: "PasswordReset",
-                        code: 500,
-                        userInfo: [NSLocalizedDescriptionKey: "Failed to process reset link."]
+                        code: 400,
+                        userInfo: [NSLocalizedDescriptionKey: "Invalid reset link. Missing code."]
                     ))
                 }
                 return
             }
             
-            // Validate the token by attempting to establish a session
-            // This is where Supabase validates the token server-side
+            // Exchange the code for a session (PKCE flow)
+            // This validates the code and establishes a session for password reset
             do {
-                // Attempt to establish session from the Supabase verification URL
-                // This validates the token: checks if it exists, hasn't expired, and hasn't been used
-                _ = try await SupabaseManager.shared.client.auth.session(from: verificationURL)
-                print("✅ Password reset token validated - session established")
+                _ = try await SupabaseManager.shared.client.auth.exchangeCodeForSession(authCode: code)
+                print("✅ Password reset code validated - session established")
                 
-                // Token is valid - store the original deep link URL for the reset view
-                // The reset view will use this URL to re-establish the session when updating password
+                // Session is now established - store code for the reset view
+                // This will immediately show the password reset view
+                // Use MainActor to ensure UI updates happen on the main thread
                 await MainActor.run {
-                    passwordResetManager.setResetURL(verificationURL)
+                    // Set the reset code which will trigger showingResetView = true
+                    passwordResetManager.setResetCode(code)
+                    print("📱 Password reset view should now be visible")
                 }
+                
+                // Give the UI a moment to update if the app was in the background
+                try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
             } catch {
-                // Token validation failed - show error
-                print("❌ Password reset token validation failed: \(error)")
+                print("❌ Password reset code validation failed: \(error)")
                 await MainActor.run {
                     passwordResetManager.setError(error)
                 }
