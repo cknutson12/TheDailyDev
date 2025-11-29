@@ -96,6 +96,20 @@ struct HomeView: View {
             // Fetch current plan for pricing display
             currentPlan = await subscriptionService.fetchCurrentPlan()
         }
+        .onAppear {
+            // Refresh subscription status when view appears (e.g., returning from checkout)
+            // Force refresh to ensure we have latest subscription status
+            Task {
+                _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
+                // Re-check access status
+                let canAccess = await subscriptionService.canAccessQuestions()
+                let answered = await QuestionService.shared.hasAnsweredToday()
+                await MainActor.run {
+                    self.canAccessQuestions = canAccess
+                    self.hasAnsweredToday = answered
+                }
+            }
+        }
     }
     
     var mainContent: some View {
@@ -369,6 +383,17 @@ struct HomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SubscriptionSuccess"))) { _ in
             // Dismiss subscription benefits view when subscription succeeds
             showingSubscriptionBenefits = false
+            // Force refresh subscription status and UI
+            Task {
+                _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
+                let canAccess = await subscriptionService.canAccessQuestions()
+                let answered = await QuestionService.shared.hasAnsweredToday()
+                await MainActor.run {
+                    self.canAccessQuestions = canAccess
+                    self.hasAnsweredToday = answered
+                }
+                print("✅ Subscription success notification received - UI refreshed")
+            }
         }
         .sheet(isPresented: $showingSubscriptionBenefits) {
             SubscriptionBenefitsView(
@@ -410,8 +435,8 @@ struct HomeView: View {
     }
     
     private func loadInitialData() async {
-        // Load subscription status (uses cache if available)
-        _ = await subscriptionService.fetchSubscriptionStatus()
+        // Load subscription status - force refresh on initial load to ensure we have latest
+        _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
         
         // Check if user has answered any question before
         let answered = await questionService.hasAnsweredAnyQuestion()

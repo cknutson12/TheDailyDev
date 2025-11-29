@@ -176,6 +176,8 @@ struct ProfileView: View {
         }
         .onAppear {
             Task {
+                // Force refresh subscription status when profile appears
+                _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
                 await loadUserData()
             }
         }
@@ -195,11 +197,11 @@ struct ProfileView: View {
     
     // MARK: - Load User Data
     private func loadUserData() async {
-        // Load subscription status
+        // Load subscription status - force refresh to get latest
         await MainActor.run {
             self.isLoadingSubscription = true
         }
-        _ = await subscriptionService.fetchSubscriptionStatus()
+        _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
         await MainActor.run {
             self.isLoadingSubscription = false
         }
