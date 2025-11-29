@@ -317,11 +317,29 @@ serve(async (req) => {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
         const customerId = subscription.customer as string
 
-        const { data: userSub } = await supabase
+        // Find user by stripe_customer_id (with retry for race conditions)
+        let { data: userSub } = await supabase
           .from('user_subscriptions')
           .select('user_id')
           .eq('stripe_customer_id', customerId)
           .single()
+
+        // If not found, wait and retry (checkout.session.completed might still be processing)
+        if (!userSub) {
+          console.log(`⚠️ No user_subscriptions record found for customer ${customerId} in invoice.payment_succeeded, waiting...`)
+          await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1 second
+          
+          const retryResult = await supabase
+            .from('user_subscriptions')
+            .select('user_id')
+            .eq('stripe_customer_id', customerId)
+            .single()
+          
+          if (retryResult.data) {
+            userSub = retryResult.data
+            console.log(`✅ Found user_subscriptions record on retry: ${userSub.user_id}`)
+          }
+        }
 
         if (userSub) {
           const upsertData: any = {
@@ -363,11 +381,29 @@ serve(async (req) => {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
         const customerId = subscription.customer as string
 
-        const { data: userSub } = await supabase
+        // Find user by stripe_customer_id (with retry for race conditions)
+        let { data: userSub } = await supabase
           .from('user_subscriptions')
           .select('user_id')
           .eq('stripe_customer_id', customerId)
           .single()
+
+        // If not found, wait and retry (checkout.session.completed might still be processing)
+        if (!userSub) {
+          console.log(`⚠️ No user_subscriptions record found for customer ${customerId} in invoice.payment_failed, waiting...`)
+          await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1 second
+          
+          const retryResult = await supabase
+            .from('user_subscriptions')
+            .select('user_id')
+            .eq('stripe_customer_id', customerId)
+            .single()
+          
+          if (retryResult.data) {
+            userSub = retryResult.data
+            console.log(`✅ Found user_subscriptions record on retry: ${userSub.user_id}`)
+          }
+        }
 
         if (userSub) {
           const upsertData: any = {
