@@ -149,6 +149,15 @@ struct LoginView: View {
             .sheet(isPresented: $showingForgotPassword) {
                 ForgotPasswordView()
             }
+            .onDisappear {
+                // Always dismiss forgot password view when leaving login view
+                // This prevents it from showing when user returns to app after password reset
+                showingForgotPassword = false
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PasswordResetLinkReceived"))) { _ in
+                // Dismiss forgot password view when password reset link is received
+                showingForgotPassword = false
+            }
         }
         .preferredColorScheme(.dark)
     }

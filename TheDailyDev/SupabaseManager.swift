@@ -16,6 +16,11 @@ class SupabaseManager {
     // MARK: - Email Verification
     
     func resendVerificationEmail(email: String) async throws {
+        // Resend verification email
+        // Note: The redirect URL should be configured in Supabase dashboard
+        // under Authentication > URL Configuration > Redirect URLs
+        // Add: https://thedailydevweb.vercel.app/auth/verify
+        // The website will then redirect to the app with a code via deep link
         try await client.auth.resend(
             email: email,
             type: .signup

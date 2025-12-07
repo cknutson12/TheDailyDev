@@ -52,10 +52,61 @@ struct TheDailyDevApp: App {
         // Handle email confirmation
         if url.scheme == "thedailydev" && url.host == "email-confirm" {
             print("📧 Email confirmation received: \(url.absoluteString)")
-            // Supabase automatically verifies when user clicks link
-            // Just refresh auth state
-            await AuthManager.shared.checkSession()
-            // Show success notification or state change
+            
+            // Extract code from query parameters
+            // Supabase redirects with a 'code' parameter after verification
+            guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                  let queryItems = components.queryItems else {
+                print("❌ No query parameters found in email confirmation URL")
+                return
+            }
+            
+            // Check for 'code' parameter first, then fallback to 'token' (if it's a UUID, not PKCE)
+            var authCode: String?
+            
+            // First try 'code' parameter
+            if let code = queryItems.first(where: { $0.name == "code" })?.value {
+                authCode = code
+                print("📋 Extracted code: \(code.prefix(20))...")
+            } else if let token = queryItems.first(where: { $0.name == "token" })?.value {
+                // If token is a UUID (not a PKCE token), treat it as a code
+                // PKCE tokens start with "pkce_", UUIDs are 36 chars with dashes
+                print("📋 Found token parameter: \(token.prefix(20))... (length: \(token.count))")
+                if !token.hasPrefix("pkce_") && token.count == 36 && token.contains("-") {
+                    authCode = token
+                    print("✅ Token is a UUID - treating as code")
+                } else {
+                    print("⚠️ Token doesn't match UUID format - ignoring")
+                }
+            } else {
+                print("⚠️ No 'code' or 'token' parameter found in query items")
+                for item in queryItems {
+                    print("   - \(item.name): \(item.value ?? "nil")")
+                }
+            }
+            
+            guard let code = authCode else {
+                print("❌ No valid code found in email confirmation URL")
+                return
+            }
+            
+            // Exchange the code for a session (PKCE flow)
+            // This verifies the email - user is already signed in, just verifying email
+            do {
+                _ = try await SupabaseManager.shared.client.auth.exchangeCodeForSession(authCode: code)
+                print("✅ Email verification code validated - email verified")
+                
+                // Give the UI a moment to update if the app was in the background
+                try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                
+                // Refresh auth state to update UI (user is already signed in, just email is now verified)
+                await AuthManager.shared.checkSession()
+                print("✅ Auth state refreshed after email verification")
+            } catch {
+                print("❌ Email verification code validation failed: \(error)")
+                // Still try to refresh auth state in case verification worked
+                await AuthManager.shared.checkSession()
+            }
             return
         }
         
@@ -119,6 +170,11 @@ struct TheDailyDevApp: App {
             do {
                 _ = try await SupabaseManager.shared.client.auth.exchangeCodeForSession(authCode: code)
                 print("✅ Password reset code validated - session established")
+                
+                // Post notification to dismiss any forgot password views
+                await MainActor.run {
+                    NotificationCenter.default.post(name: NSNotification.Name("PasswordResetLinkReceived"), object: nil)
+                }
                 
                 // Session is now established - store code for the reset view
                 // This will immediately show the password reset view

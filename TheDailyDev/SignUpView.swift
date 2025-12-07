@@ -145,6 +145,11 @@ struct SignUpView: View {
                 // Dismiss subscription benefits view when subscription succeeds
                 showingSubscriptionBenefits = false
             }
+            .onDisappear {
+                // Always dismiss subscription screen when leaving signup view
+                // This prevents it from showing when user returns to app
+                showingSubscriptionBenefits = false
+            }
             .sheet(isPresented: $showingSubscriptionBenefits) {
                 SubscriptionBenefitsView(
                     onSubscribe: { plan, skipTrial in

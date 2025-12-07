@@ -92,9 +92,18 @@ struct HomeView: View {
         }
         .preferredColorScheme(.dark)
         .task {
+            // Force refresh subscription status immediately on view load
+            _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
             await loadInitialData()
             // Fetch current plan for pricing display
             currentPlan = await subscriptionService.fetchCurrentPlan()
+            // Re-check access status after subscription is loaded
+            let canAccess = await subscriptionService.canAccessQuestions()
+            let answered = await QuestionService.shared.hasAnsweredToday()
+            await MainActor.run {
+                self.canAccessQuestions = canAccess
+                self.hasAnsweredToday = answered
+            }
         }
         .onAppear {
             // Refresh subscription status when view appears (e.g., returning from checkout)
@@ -394,6 +403,11 @@ struct HomeView: View {
                 }
                 print("✅ Subscription success notification received - UI refreshed")
             }
+        }
+        .onDisappear {
+            // Always dismiss subscription screen when leaving home view
+            // This prevents it from showing when user returns to app
+            showingSubscriptionBenefits = false
         }
         .sheet(isPresented: $showingSubscriptionBenefits) {
             SubscriptionBenefitsView(

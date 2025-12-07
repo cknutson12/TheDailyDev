@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 
 struct ContentView: View {
@@ -108,7 +109,17 @@ struct ContentView: View {
             if authManager.isAuthenticated {
                 // Ensure user_subscriptions record exists for OAuth users
                 await SubscriptionService.shared.ensureUserSubscriptionRecord()
+                // Force refresh subscription status on app launch
+                _ = await SubscriptionService.shared.fetchSubscriptionStatus(forceRefresh: true)
                 isLoggedIn = true
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            // Refresh subscription status when app comes to foreground
+            Task {
+                if authManager.isAuthenticated {
+                    _ = await SubscriptionService.shared.fetchSubscriptionStatus(forceRefresh: true)
+                }
             }
         }
         .onChange(of: authManager.isAuthenticated) { oldValue, newValue in
