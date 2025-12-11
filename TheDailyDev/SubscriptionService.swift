@@ -133,6 +133,9 @@ class SubscriptionService: ObservableObject {
     }
     
     // MARK: - Ensure User Subscription Record Exists
+    /// Ensures a user_subscriptions record exists for the user, but NEVER modifies subscription status
+    /// WARNING: DO NOT modify status, stripe_subscription_id, or any subscription-related fields here!
+    /// Those fields are ONLY managed by the Stripe webhook to maintain sync with Stripe
     func ensureUserSubscriptionRecord() async {
         do {
             let session = try await SupabaseManager.shared.client.auth.session
@@ -158,30 +161,32 @@ class SubscriptionService: ObservableObject {
                 .execute()
                 .value
             
-            // Use upsert to ensure only one record per user (handles race conditions)
-            // Build upsert data, only including non-nil values
-            var upsertData: [String: String] = [
-                "user_id": userId,
-                "status": "inactive"
-            ]
-            
-            // Only set name if we have it
-            if let firstName = firstName, !firstName.isEmpty {
-                upsertData["first_name"] = firstName
-            }
-            if let lastName = lastName, !lastName.isEmpty {
-                upsertData["last_name"] = lastName
-            }
-            
-            // Use upsert with conflict resolution on user_id
-            _ = try await SupabaseManager.shared.client
-                .from("user_subscriptions")
-                .upsert(upsertData, onConflict: "user_id")
-                .execute()
-            
-            // Update name if record exists and name is missing
-            if !existing.isEmpty {
-                // Record exists - update it if name is missing but now available
+            if existing.isEmpty {
+                // Record doesn't exist - create it with minimal data
+                // IMPORTANT: Only set status to "inactive" when creating NEW records
+                // The Stripe webhook will update it to "trialing" or "active" when subscription is created
+                var insertData: [String: String] = [
+                    "user_id": userId,
+                    "status": "inactive"  // Only set for NEW records
+                ]
+                
+                // Only set name if we have it
+                if let firstName = firstName, !firstName.isEmpty {
+                    insertData["first_name"] = firstName
+                }
+                if let lastName = lastName, !lastName.isEmpty {
+                    insertData["last_name"] = lastName
+                }
+                
+                _ = try await SupabaseManager.shared.client
+                    .from("user_subscriptions")
+                    .insert(insertData)
+                    .execute()
+                
+                print("✅ Created new user_subscriptions record for user \(userId)")
+            } else {
+                // Record exists - ONLY update name fields if they're missing
+                // DO NOT touch subscription status or Stripe-related fields!
                 if let existingRecord = existing.first {
                     let needsUpdate = (existingRecord.firstName == nil || existingRecord.firstName?.isEmpty == true) && firstName != nil ||
                                       (existingRecord.lastName == nil || existingRecord.lastName?.isEmpty == true) && lastName != nil
@@ -202,9 +207,11 @@ class SubscriptionService: ObservableObject {
                                 .eq("user_id", value: userId)
                                 .execute()
                             
+                            print("✅ Updated name for user_subscriptions record for user \(userId)")
                         }
                     }
                 }
+                // If record exists, do nothing else - Stripe webhook manages subscription fields
             }
         } catch {
             print("❌ Failed to ensure user_subscriptions record: \(error)")

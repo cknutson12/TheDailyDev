@@ -1,6 +1,32 @@
 import SwiftUI
 
+// MARK: - Layout Constants
+/// Constants for the contribution tracking grid layout
+/// Centralizes all sizing values for easy maintenance and consistency
+private enum ContributionGridLayout {
+    static let squareSize: CGFloat = 24           // Size of each contribution square
+    static let squareSpacing: CGFloat = 2         // Space between squares
+    static let cornerRadius: CGFloat = 3          // Rounded corners for squares
+    static let dayLabelWidth: CGFloat = 40        // Width of day label column
+    static let weeksToDisplay: Int = 52           // Number of weeks to show in the grid
+    
+    // Calculated values for consistency
+    // Month label width must match the week column width (squareSize only, spacing is added by HStack)
+    static var monthLabelWidth: CGFloat {
+        squareSize
+    }
+}
+
 // MARK: - Contributions Tracker View
+/// Main view for displaying user's question history in a GitHub-style contribution grid
+/// 
+/// Features:
+/// - GitHub-style contribution calendar showing answered/unanswered questions
+/// - Rolling 52-week view for current year, full calendar year for past years
+/// - Color-coded squares: green=correct, red=incorrect, gray=unanswered
+/// - Tappable squares to review past questions or answer missed ones
+/// - Year selector tabs for viewing historical data
+/// - Handles year boundaries and leap years correctly
 struct ContributionsTracker: View {
     let progressHistory: [UserProgressWithQuestion]
     let allDailyChallenges: [DailyChallenge]
@@ -84,6 +110,9 @@ struct ContributionsTracker: View {
                     } else if question != nil {
                         // Unanswered question - show question view to answer
                         showingQuestion = true
+                    } else {
+                        // No question for this date - show review with empty state
+                        showingQuestionReview = true
                     }
                 }
             )
@@ -201,8 +230,8 @@ struct LegendItem: View {
         HStack(spacing: 3) {
             Rectangle()
                 .fill(color)
-                .frame(width: 16, height: 16)
-                .cornerRadius(3)
+                .frame(width: ContributionGridLayout.squareSize, height: ContributionGridLayout.squareSize)
+                .cornerRadius(ContributionGridLayout.cornerRadius)
             
             Text(text)
                 .font(.caption2)
@@ -226,19 +255,20 @@ struct ContributionsGrid: View {
         self.allDailyChallenges = allDailyChallenges
         self.selectedYear = selectedYear
         self.onDateSelected = onDateSelected
+        // Date format matches the database format for daily challenges (yyyy-MM-dd)
         self.dateFormatter.dateFormat = "yyyy-MM-dd"
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             // Grid with fixed day labels and synchronized scrolling
-            HStack(alignment: .top, spacing: 1) {
+            HStack(alignment: .top, spacing: ContributionGridLayout.squareSpacing) {
                 // Day labels - Fixed on left, always visible
-                VStack(spacing: 1) {
+                VStack(spacing: ContributionGridLayout.squareSpacing) {
                     // Empty space to align with month labels
                     Text("")
                         .font(.caption2)
-                        .frame(height: 16)
+                        .frame(height: ContributionGridLayout.squareSize)
                     
                     // Day labels aligned with contribution squares
                     ForEach(0..<7) { dayIndex in
@@ -246,45 +276,47 @@ struct ContributionsGrid: View {
                             Text(dayLabels[labelIndex])
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
-                                .frame(height: 16) // Match new square height
+                                .frame(height: ContributionGridLayout.squareSize)
                                 .frame(maxWidth: .infinity, alignment: .trailing) // Right-align text
                                 .minimumScaleFactor(0.7) // Allow text to scale down to 70%
                         } else {
                             // Empty space for other days
                             Text("")
                                 .font(.caption2)
-                                .frame(height: 16) // Match new square height
+                                .frame(height: ContributionGridLayout.squareSize)
                         }
                     }
                 }
-                .frame(width: 40) // Wider for better text visibility
+                .frame(width: ContributionGridLayout.dayLabelWidth)
                 
                 // Single ScrollView containing both month labels and contribution squares
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 4) {
                         // Month labels positioned based on calendar weeks
-                        HStack(spacing: 0) {
+                        // Important: spacing must match the contribution squares HStack spacing for alignment
+                        HStack(spacing: ContributionGridLayout.squareSpacing) {
                             ForEach(Array(0..<weeksToShow), id: \.self) { week in
                                 if let monthLabel = getMonthLabelForWeek(week) {
                                     Text(monthLabel)
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
-                                        .frame(width: 24) // Wider frame for month names
+                                        .frame(width: ContributionGridLayout.monthLabelWidth)
                                         .lineLimit(1)
                                         .minimumScaleFactor(0.5) // Allow text to scale down to 50%
                                 } else {
                                     // Empty space for weeks without month labels
+                                    // Must use same width as monthLabelWidth for consistent alignment
                                     Text("")
-                                        .frame(width: 16) // Match new square width
+                                        .frame(width: ContributionGridLayout.monthLabelWidth)
                                 }
                             }
                         }
                         
                         // Contribution squares
-                        VStack(alignment: .leading, spacing: 1) {
+                        VStack(alignment: .leading, spacing: ContributionGridLayout.squareSpacing) {
                             ForEach(0..<7) { day in
-                                HStack(spacing: 1) {
+                                HStack(spacing: ContributionGridLayout.squareSpacing) {
                                     ForEach(Array(0..<weeksToShow), id: \.self) { week in
                                         if let date = getDateForGridPosition(week: week, day: day) {
                                             let progress = progressForDate(date)
@@ -304,8 +336,8 @@ struct ContributionsGrid: View {
                                                     // Show clickable empty box for past dates with no data
                                                     Rectangle()
                                                         .fill(Color.gray.opacity(0.3))
-                                                        .frame(width: 16, height: 16)
-                                                        .cornerRadius(3)
+                                                        .frame(width: ContributionGridLayout.squareSize, height: ContributionGridLayout.squareSize)
+                                                        .cornerRadius(ContributionGridLayout.cornerRadius)
                                                         .accessibilityIdentifier("ContributionSquare")
                                                         .onTapGesture {
                                                             onDateSelected(date, nil, nil)
@@ -314,7 +346,7 @@ struct ContributionsGrid: View {
                                                     // Truly empty space for future dates
                                                     Rectangle()
                                                         .fill(Color.clear)
-                                                        .frame(width: 16, height: 16)
+                                                        .frame(width: ContributionGridLayout.squareSize, height: ContributionGridLayout.squareSize)
                                                 }
                                             }
                                     }
@@ -336,22 +368,39 @@ struct ContributionsGrid: View {
         }
     }
     
-    // Get date for a specific grid position (week, day)
+    // MARK: - Date Calculation Methods
+    
+    /// Get date for a specific grid position (week, day)
+    /// - Parameters:
+    ///   - week: Week index (0-51), where 0 is the leftmost week and 51 is the rightmost (current) week
+    ///   - day: Day index (0-6), where 0=Sunday, 1=Monday, ..., 6=Saturday
+    /// - Returns: The date for this grid position, or nil if it's a future date or outside the selected year
+    ///
+    /// This method handles two different modes:
+    /// 1. Current year: Shows a rolling 52-week view ending with the current week
+    /// 2. Previous years: Shows all weeks in that calendar year
+    ///
+    /// Edge cases handled:
+    /// - Year boundaries (Dec 31 → Jan 1): Calendar.date(byAdding:) handles this automatically
+    /// - Leap years: Calendar.date(byAdding:) correctly handles Feb 29 in leap years
+    /// - Future dates: Returns nil for dates that haven't occurred yet
     private func getDateForGridPosition(week: Int, day: Int) -> Date? {
         if selectedYear == Calendar.current.component(.year, from: Date()) {
             // Rolling 52-week view ending today
             let today = Date()
             
             // Calculate the start of the current week (Sunday)
-            let todayWeekday = calendar.component(.weekday, from: today) // 1=Sunday, 2=Monday, etc.
-            let daysFromSunday = (todayWeekday == 1) ? 0 : (todayWeekday - 1) // Convert to 0=Sunday, 1=Monday, etc.
+            // weekday: 1=Sunday, 2=Monday, ..., 7=Saturday
+            let todayWeekday = calendar.component(.weekday, from: today)
+            let daysFromSunday = todayWeekday - 1  // 0 for Sunday, 1 for Monday, ..., 6 for Saturday
             let currentWeekStart = calendar.date(byAdding: .day, value: -daysFromSunday, to: today) ?? today
             
             // Calculate the target week start (going back by week number)
-            let weeksBack = 51 - week // week 51 is current week, week 0 is 51 weeks ago
+            // week 51 is current week, week 0 is 51 weeks ago
+            let weeksBack = ContributionGridLayout.weeksToDisplay - 1 - week
             let targetWeekStart = calendar.date(byAdding: .weekOfYear, value: -weeksBack, to: currentWeekStart) ?? currentWeekStart
             
-            // Add the day offset within the week
+            // Add the day offset within the week (0=Sunday through 6=Saturday)
             let targetDate = calendar.date(byAdding: .day, value: day, to: targetWeekStart) ?? targetWeekStart
             
             // Only return dates that have actually occurred (not future dates)
@@ -359,16 +408,21 @@ struct ContributionsGrid: View {
         } else {
             // Year view - start from January 1st of selected year
             let yearStart = calendar.date(from: DateComponents(year: selectedYear, month: 1, day: 1)) ?? Date()
-            let firstWeekday = calendar.component(.weekday, from: yearStart) // 1=Sunday, 2=Monday, etc.
+            let firstWeekday = calendar.component(.weekday, from: yearStart) // 1=Sunday, 2=Monday, ..., 7=Saturday
             
             // Calculate the start of the first week (Sunday before or on Jan 1st)
-            let daysToFirstSunday = (firstWeekday == 1) ? 0 : (8 - firstWeekday) % 7
-            let firstWeekStart = calendar.date(byAdding: .day, value: -daysToFirstSunday, to: yearStart) ?? yearStart
+            // If Jan 1 is Sunday (weekday=1), daysFromSunday=0 (no adjustment needed)
+            // If Jan 1 is Monday (weekday=2), daysFromSunday=1 (go back 1 day to Sunday)
+            // If Jan 1 is Saturday (weekday=7), daysFromSunday=6 (go back 6 days to Sunday)
+            let daysFromSunday = firstWeekday - 1
+            let firstWeekStart = calendar.date(byAdding: .day, value: -daysFromSunday, to: yearStart) ?? yearStart
             
+            // Calculate the target date by adding week and day offsets
             let dayOffset = week * 7 + day
             let targetDate = calendar.date(byAdding: .day, value: dayOffset, to: firstWeekStart) ?? yearStart
             
             // Only return dates within the selected year
+            // This filters out dates from late December of previous year or early January of next year
             let targetYear = calendar.component(.year, from: targetDate)
             return targetYear == selectedYear ? targetDate : nil
         }
@@ -376,10 +430,15 @@ struct ContributionsGrid: View {
     
     // Number of weeks to display
     private var weeksToShow: Int {
-        return 52 // Always show 52 weeks
+        return ContributionGridLayout.weeksToDisplay
     }
     
-    // Get month label for a specific week based on calendar logic
+    /// Get month label for a specific week column
+    /// - Parameter week: Week index (0-51)
+    /// - Returns: Month abbreviation if this week contains the 1st of a month, nil otherwise
+    ///
+    /// This ensures month labels appear exactly once at the week containing the month's first day.
+    /// Works correctly across year boundaries because getDateForGridPosition handles year transitions.
     private func getMonthLabelForWeek(_ week: Int) -> String? {
         let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -390,6 +449,7 @@ struct ContributionsGrid: View {
         }
         
         // Check if this week contains the first day of any month
+        // We check all 7 days in the week to catch the 1st regardless of which day it falls on
         for dayOffset in 0..<7 {
             if let dateInWeek = calendar.date(byAdding: .day, value: dayOffset, to: firstDayOfWeek) {
                 let dayInMonth = calendar.component(.day, from: dateInWeek)
@@ -397,6 +457,7 @@ struct ContributionsGrid: View {
                 
                 if dayInMonth == 1 {
                     // This week contains the 1st of a month, show the month label
+                    // month is 1-indexed, so subtract 1 for array access
                     return months[month - 1]
                 }
             }
@@ -405,19 +466,26 @@ struct ContributionsGrid: View {
         return nil
     }
     
-    // Day labels for Mon, Wed, Fri only
+    // Day labels for all days of the week
+    // Displayed on the left side of the grid, aligned with each row
     private var dayLabels: [String] {
         return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     }
     
     // Get the row indices for all days (0-based, where 0=Sunday)
+    // This matches the grid coordinate system used in getDateForGridPosition
+    // Sunday=0, Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5, Saturday=6
     private var dayRowIndices: [Int] {
-        return [0, 1, 2, 3, 4, 5, 6] // All days: Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6
+        return [0, 1, 2, 3, 4, 5, 6]
     }
     
-    // Find progress for a specific date
-    // Matches progress to dates based on which question was scheduled for that date,
-    // not when the user actually answered it
+    /// Find progress for a specific date
+    /// Matches progress to dates based on which question was scheduled for that date,
+    /// not when the user actually answered it.
+    ///
+    /// For example, if Monday's question is answered on Tuesday, it still shows up on Monday's square.
+    /// - Parameter date: The date to find progress for
+    /// - Returns: UserProgressWithQuestion if the user answered the question scheduled for this date
     private func progressForDate(_ date: Date) -> UserProgressWithQuestion? {
         let dateString = dateFormatter.string(from: date)
         
@@ -433,7 +501,9 @@ struct ContributionsGrid: View {
         }
     }
     
-    // Find question for a specific date
+    /// Find question for a specific date
+    /// - Parameter date: The date to find the question for
+    /// - Returns: The question that was scheduled for this date, or nil if no question exists
     private func questionForDate(_ date: Date) -> Question? {
         let dateString = dateFormatter.string(from: date)
         return allDailyChallenges.first { challenge in
@@ -454,8 +524,8 @@ struct ContributionSquare: View {
     var body: some View {
         Rectangle()
             .fill(squareColor)
-            .frame(width: 16, height: 16)
-            .cornerRadius(3)
+            .frame(width: ContributionGridLayout.squareSize, height: ContributionGridLayout.squareSize)
+            .cornerRadius(ContributionGridLayout.cornerRadius)
             .accessibilityIdentifier("ContributionSquare")
             .onTapGesture {
                 onTap()
@@ -491,10 +561,31 @@ struct QuestionReviewView: View {
         return formatter
     }()
     
+    private let questionDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+        return formatter
+    }()
+    
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    // Date Banner at the top
+                    HStack {
+                        Image(systemName: "calendar")
+                            .foregroundColor(Theme.Colors.accentGreen)
+                        Text(questionDateFormatter.string(from: date))
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Theme.Colors.surface)
+                    .cornerRadius(8)
+                    
                     if let progress = progress, let question = progress.question {
                         // Question Header
                         VStack(alignment: .leading, spacing: 12) {
@@ -779,9 +870,9 @@ struct QuestionReviewView: View {
                         }
                         
                     } else {
-                        // No question data - just show the date
+                        // No question data - show empty state with date
                         VStack(spacing: 20) {
-                            Image(systemName: "calendar")
+                            Image(systemName: "calendar.badge.exclamationmark")
                                 .font(.system(size: 60))
                                 .foregroundColor(.gray)
                             
@@ -789,25 +880,28 @@ struct QuestionReviewView: View {
                                 .font(.title2)
                                 .fontWeight(.bold)
                             
-                            Text("There was no question available for this date.")
+                            Text("There was no question scheduled for this date.")
                                 .font(.body)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
                             
-                            VStack(alignment: .leading, spacing: 8) {
+                            // Show the date prominently
+                            VStack(spacing: 4) {
                                 Text("Date")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
                                 
-                                Text(dateFormatter.string(from: date))
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
+                                Text(questionDateFormatter.string(from: date))
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
                             }
                             .padding()
                             .background(Color.gray.opacity(0.1))
                             .cornerRadius(12)
                         }
                         .padding()
+                        .frame(maxWidth: .infinity)
                     }
                 }
                 .padding()
