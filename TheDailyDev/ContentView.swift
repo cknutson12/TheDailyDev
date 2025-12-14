@@ -107,6 +107,8 @@ struct ContentView: View {
             // Check for existing session on app launch
             await authManager.checkSession()
             if authManager.isAuthenticated {
+                // Set RevenueCat user ID
+                await authManager.setRevenueCatUserID()
                 // Ensure user_subscriptions record exists for OAuth users
                 await SubscriptionService.shared.ensureUserSubscriptionRecord()
                 // Force refresh subscription status on app launch

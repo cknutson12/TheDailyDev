@@ -270,7 +270,7 @@ struct SubscriptionSettingsView: View {
     }
     
     // MARK: - Open Billing Portal
-    private func openStripeBillingPortal() {
+    private func openBillingPortal() {
         Task {
             do {
                 let portalURL = try await subscriptionService.getBillingPortalURL()

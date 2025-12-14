@@ -152,11 +152,6 @@ struct SignUpView: View {
             }
             .sheet(isPresented: $showingSubscriptionBenefits) {
                 SubscriptionBenefitsView(
-                    onSubscribe: { plan, skipTrial in
-                        Task {
-                            await handleSubscription(plan: plan, skipTrial: skipTrial)
-                        }
-                    },
                     onSkip: {
                         showingSubscriptionBenefits = false
                         isLoggedIn = true
@@ -177,38 +172,6 @@ struct SignUpView: View {
             }
         }
         .preferredColorScheme(.dark)
-    }
-    
-    // MARK: - Handle Subscription
-    private func handleSubscription(plan: SubscriptionPlan, skipTrial: Bool = false) async {
-        do {
-            print("🔄 Opening Stripe checkout...")
-            let checkoutURL = try await subscriptionService.getCheckoutURL(plan: plan, skipTrial: skipTrial)
-            print("✅ Checkout session created: \(checkoutURL)")
-            
-            await MainActor.run {
-                print("🌐 Opening Safari with checkout URL...")
-                if UIApplication.shared.canOpenURL(checkoutURL) {
-                    UIApplication.shared.open(checkoutURL) { success in
-                        if success {
-                            print("✅ Safari opened successfully")
-                        } else {
-                            print("❌ Failed to open Safari")
-                        }
-                    }
-                } else {
-                    print("❌ Cannot open URL: \(checkoutURL)")
-                    message = "Cannot open browser. Please check your settings."
-                }
-            }
-        } catch {
-            print("❌ Failed to create checkout session: \(error)")
-            await MainActor.run {
-                message = "Failed to start subscription: \(error.localizedDescription)"
-                showingSubscriptionBenefits = false
-                isLoggedIn = true
-            }
-        }
     }
     
     // MARK: - Supabase Sign Up with Profile Data
@@ -313,12 +276,14 @@ struct SignUpView: View {
     // MARK: - OAuth Sign In
     func signInWithGoogle() async {
         do {
-            let session = try await SupabaseManager.shared.client.auth.signInWithOAuth(
+            _ = try await SupabaseManager.shared.client.auth.signInWithOAuth(
                 provider: .google,
                 redirectTo: URL(string: "com.supabase.thedailydev://oauth-callback")
             )
             // If we got a session, the user is already signed in
             await AuthManager.shared.checkSession()
+            // Set RevenueCat user ID
+            await AuthManager.shared.setRevenueCatUserID()
             // Ensure user_subscriptions record exists
             await SubscriptionService.shared.ensureUserSubscriptionRecord()
             await MainActor.run {
@@ -334,12 +299,14 @@ struct SignUpView: View {
     
     func signInWithGitHub() async {
         do {
-            let session = try await SupabaseManager.shared.client.auth.signInWithOAuth(
+            _ = try await SupabaseManager.shared.client.auth.signInWithOAuth(
                 provider: .github,
                 redirectTo: URL(string: "com.supabase.thedailydev://oauth-callback")
             )
             // If we got a session, the user is already signed in
             await AuthManager.shared.checkSession()
+            // Set RevenueCat user ID
+            await AuthManager.shared.setRevenueCatUserID()
             // Ensure user_subscriptions record exists
             await SubscriptionService.shared.ensureUserSubscriptionRecord()
             await MainActor.run {

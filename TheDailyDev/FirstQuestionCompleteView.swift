@@ -1,12 +1,9 @@
 import SwiftUI
+import RevenueCat
 
 struct FirstQuestionCompleteView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var subscriptionService = SubscriptionService.shared
-    @State private var isLoading = false
-    @State private var errorMessage = ""
-    @State private var allPlans: [SubscriptionPlan] = []
-    @State private var selectedPlan: SubscriptionPlan?
     
     var body: some View {
         ZStack {
@@ -50,49 +47,9 @@ struct FirstQuestionCompleteView: View {
                     .font(.title2)
                     .foregroundColor(Theme.Colors.textPrimary)
                 
-                // Plan Selection
-                if !allPlans.isEmpty {
-                    VStack(spacing: 12) {
-                        ForEach(allPlans) { plan in
-                            PlanSelectionCard(
-                                plan: plan,
-                                isSelected: selectedPlan?.id == plan.id,
-                                onSelect: {
-                                    selectedPlan = plan
-                                }
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 32)
-                } else {
-                    // Fallback trial info box
-                    VStack(spacing: 12) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "gift.fill")
-                                .font(.system(size: 32))
-                                .foregroundColor(Theme.Colors.accentGreen)
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("7 Days Free, Then $4.99/Month")
-                                    .font(.headline)
-                                    .foregroundColor(Theme.Colors.textPrimary)
-                                
-                                Text("Auto-renews after trial • Cancel anytime")
-                                    .font(.caption)
-                                    .foregroundColor(Theme.Colors.textSecondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(16)
-                    .background(Theme.Colors.surface)
-                    .cornerRadius(Theme.Metrics.cornerRadius)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
-                            .stroke(Theme.Colors.accentGreen.opacity(0.3), lineWidth: 1)
-                    )
-                    .padding(.horizontal, 32)
-                }
+                // Show RevenueCat paywall for plan selection
+                RevenueCatPaywallView()
+                    .frame(height: 400) // Limit height to fit in view
                 
                 // Benefits list
                 VStack(alignment: .leading, spacing: 12) {
@@ -105,152 +62,17 @@ struct FirstQuestionCompleteView: View {
                 
                 Spacer()
                 
-                // Error message
-                if !errorMessage.isEmpty {
-                    Text(errorMessage)
-                        .foregroundColor(Theme.Colors.stateIncorrect)
-                        .font(.caption)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                Button(action: {
+                    dismiss()
+                }) {
+                    Text("No Thanks - I'll use free Friday questions")
+                        .font(.subheadline)
+                        .foregroundColor(Theme.Colors.textSecondary)
                 }
-                
-                // Buttons
-                VStack(spacing: 12) {
-                    // Subscribe Now Button (Primary - Default)
-                    Button(action: {
-                        Task { 
-                            await startTrial(skipTrial: true) 
-                        }
-                    }) {
-                        if isLoading {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle())
-                                .tint(.black)
-                        } else {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.title3)
-                                VStack(spacing: 4) {
-                                    Text("Subscribe Now")
-                                        .bold()
-                                        .font(.headline)
-                                    if let plan = selectedPlan ?? allPlans.first {
-                                        Text("Billing starts immediately • \(plan.formattedPrice)")
-                                            .font(.caption2)
-                                            .opacity(0.8)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(isLoading || (selectedPlan == nil && !allPlans.isEmpty))
-                    
-                    // Divider
-                    HStack {
-                        Rectangle()
-                            .fill(Theme.Colors.border)
-                            .frame(height: 1)
-                        
-                        Text("OR")
-                            .font(.caption)
-                            .foregroundColor(Theme.Colors.textSecondary)
-                            .padding(.horizontal, 8)
-                        
-                        Rectangle()
-                            .fill(Theme.Colors.border)
-                            .frame(height: 1)
-                    }
-                    .padding(.vertical, 4)
-                    
-                    // Start Free Trial Button (Secondary)
-                    Button(action: {
-                        Task { 
-                            await startTrial(skipTrial: false) 
-                        }
-                    }) {
-                        HStack {
-                            Image(systemName: "gift.fill")
-                                .font(.title3)
-                            VStack(spacing: 4) {
-                                Text("Start Free Trial")
-                                    .bold()
-                                    .font(.headline)
-                                if let plan = selectedPlan ?? allPlans.first {
-                                    Text("\(plan.trialDays) days free, then \(plan.formattedPrice)")
-                                        .font(.caption2)
-                                        .opacity(0.8)
-                                } else {
-                                    Text("7 days free, then billed monthly")
-                                        .font(.caption2)
-                                        .opacity(0.8)
-                                }
-                            }
-                        }
-                        .foregroundColor(Theme.Colors.accentGreen)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Theme.Colors.surface)
-                        .cornerRadius(Theme.Metrics.cornerRadius)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
-                                .stroke(Theme.Colors.accentGreen, lineWidth: 2)
-                        )
-                    }
-                    .disabled(isLoading || (selectedPlan == nil && !allPlans.isEmpty))
-                    
-                    Button(action: {
-                        dismiss()
-                    }) {
-                        Text("No Thanks - I'll use free Friday questions")
-                            .font(.subheadline)
-                            .foregroundColor(Theme.Colors.textSecondary)
-                    }
-                    .padding(.bottom, 16)
-                    .disabled(isLoading)
-                }
-                .padding(.horizontal, 32)
+                .padding(.bottom, 16)
             }
         }
         .preferredColorScheme(.dark)
-        .task {
-            // Fetch all plans for selection
-            let plans = await subscriptionService.fetchAllPlans()
-            await MainActor.run {
-                self.allPlans = plans
-                // Default to monthly plan
-                self.selectedPlan = plans.first { $0.name == "monthly" }
-            }
-        }
-    }
-    
-    private func startTrial(skipTrial: Bool = false) async {
-        await MainActor.run {
-            isLoading = true
-            errorMessage = ""
-        }
-        
-        guard let plan = selectedPlan ?? allPlans.first else {
-            await MainActor.run {
-                errorMessage = "Please select a plan"
-                isLoading = false
-            }
-            return
-        }
-        
-        do {
-            let checkoutURL = try await subscriptionService.getCheckoutURL(plan: plan, skipTrial: skipTrial)
-            await MainActor.run {
-                isLoading = false
-                UIApplication.shared.open(checkoutURL)
-                // Don't dismiss - let user return via deep link
-            }
-        } catch {
-            await MainActor.run {
-                errorMessage = "Failed to start subscription: \(error.localizedDescription)"
-                isLoading = false
-            }
-        }
     }
 }
 

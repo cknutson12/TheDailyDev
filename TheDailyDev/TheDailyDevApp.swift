@@ -6,11 +6,22 @@
 //
 
 import SwiftUI
+import RevenueCat
 
 @main
 struct TheDailyDevApp: App {
     @StateObject private var subscriptionService = SubscriptionService.shared
     @StateObject private var passwordResetManager = PasswordResetManager.shared
+    
+    init() {
+        // Initialize RevenueCat SDK
+        Purchases.logLevel = .debug // Use .info or .warn in production
+        Purchases.configure(withAPIKey: Config.revenueCatAPIKey)
+        
+        // Set user ID after authentication (will be called from AuthManager)
+        // For now, anonymous ID will be used until user signs in
+        print("✅ RevenueCat SDK initialized with API key")
+    }
     
     var body: some Scene {
         WindowGroup {
@@ -196,10 +207,10 @@ struct TheDailyDevApp: App {
             return
         }
         
-        // Note: trial-started handler removed - subscriptions are created directly via Stripe checkout
+        // Note: subscriptions are created directly via RevenueCat
         // The webhook handles creating the user_subscription record when checkout.session.completed fires
         
-        // Handle Stripe return
+        // Handle subscription return
         guard url.scheme == "thedailydev" else {
             print("❌ Invalid scheme: \(url.scheme ?? "nil")")
             return

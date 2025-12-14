@@ -7,6 +7,7 @@
 
 import Foundation
 import Supabase
+import RevenueCat
 
 class SubscriptionService: ObservableObject {
     static let shared = SubscriptionService()
@@ -19,6 +20,12 @@ class SubscriptionService: ObservableObject {
     private var lastFetchTime: Date?
     private let cacheTimeout: TimeInterval = 300 // 5 minutes
     
+    // Request deduplication - prevent concurrent syncs
+    private var currentSyncTask: Task<Void, Never>?
+    private var currentFetchTask: Task<UserSubscription?, Never>?
+    
+    // RevenueCat provider instance
+    private let revenueCatProvider = RevenueCatSubscriptionProvider()
     
     private init() {}
     
@@ -29,71 +36,43 @@ class SubscriptionService: ObservableObject {
         print("🔄 Cache invalidated - next fetch will be fresh")
     }
     
-    // Subscription plan cache
-    private var currentPlan: SubscriptionPlan?
-    private var allPlans: [SubscriptionPlan] = []
-    private var planFetchTime: Date?
-    private let planCacheTimeout: TimeInterval = 3600 // 1 hour (prices don't change often)
-    
-    // MARK: - Fetch Current Subscription Plan
-    /// Fetches the active monthly subscription plan from the database
-    /// This allows updating prices without releasing a new app version
-    func fetchCurrentPlan(forceRefresh: Bool = false) async -> SubscriptionPlan? {
-        // Fetch all plans first to populate cache
-        _ = await fetchAllPlans(forceRefresh: forceRefresh)
+    /// Clear ALL caches and reset state - call on sign out to ensure no user data persists
+    func clearAllCaches() {
+        // Clear fetch time cache
+        lastFetchTime = nil
         
-        // Return monthly plan (default)
-        return allPlans.first { $0.name == "monthly" }
-    }
-    
-    // MARK: - Fetch All Subscription Plans
-    /// Fetches all active subscription plans from the database
-    /// Returns monthly and annual plans
-    func fetchAllPlans(forceRefresh: Bool = false) async -> [SubscriptionPlan] {
-        // Check cache first
-        if !forceRefresh,
-           !allPlans.isEmpty,
-           let lastFetch = planFetchTime,
-           Date().timeIntervalSince(lastFetch) < planCacheTimeout {
-            return allPlans
-        }
+        // Clear current subscription
+        currentSubscription = nil
         
-        do {
-            let plans: [SubscriptionPlan] = try await SupabaseManager.shared.client
-                .from("subscription_plans")
-                .select()
-                .eq("is_active", value: true)
-                .order("billing_period", ascending: true) // Monthly first, then annual
-                .execute()
-                .value
-            
-            await MainActor.run {
-                self.allPlans = plans
-                self.currentPlan = plans.first { $0.name == "monthly" }
-                self.planFetchTime = Date()
-            }
-            
-            print("✅ Fetched \(plans.count) subscription plan(s)")
-            for plan in plans {
-                print("   - \(plan.name): \(plan.formattedPrice)")
-            }
-            
-            return plans
-        } catch {
-            print("❌ Failed to fetch subscription plans: \(error)")
-            // Return cached plans if available, even if expired
-            return allPlans
-        }
+        // Clear error message
+        errorMessage = nil
+        
+        // Reset loading state
+        isLoading = false
+        
+        // Cancel any in-progress requests
+        currentSyncTask?.cancel()
+        currentSyncTask = nil
+        currentFetchTask?.cancel()
+        currentFetchTask = nil
+        
+        print("🧹 All SubscriptionService caches cleared")
     }
     
-    /// Get the current plan (cached or fetch if needed)
-    var currentPlanSync: SubscriptionPlan? {
-        return currentPlan
+    // MARK: - Get RevenueCat Packages
+    /// Get all available packages from RevenueCat
+    func getAvailablePackages() async throws -> [Package] {
+        return try await revenueCatProvider.getAvailablePackages()
     }
     
-    /// Get all plans (cached)
-    var allPlansSync: [SubscriptionPlan] {
-        return allPlans
+    /// Get monthly package (default)
+    func getMonthlyPackage() async throws -> Package? {
+        return try await revenueCatProvider.getMonthlyPackage()
+    }
+    
+    /// Get yearly package
+    func getYearlyPackage() async throws -> Package? {
+        return try await revenueCatProvider.getYearlyPackage()
     }
     
     // MARK: - Extract Name from User Metadata
@@ -134,8 +113,8 @@ class SubscriptionService: ObservableObject {
     
     // MARK: - Ensure User Subscription Record Exists
     /// Ensures a user_subscriptions record exists for the user, but NEVER modifies subscription status
-    /// WARNING: DO NOT modify status, stripe_subscription_id, or any subscription-related fields here!
-    /// Those fields are ONLY managed by the Stripe webhook to maintain sync with Stripe
+    /// WARNING: DO NOT modify status or RevenueCat-related fields here!
+    /// Those fields are ONLY managed by the RevenueCat webhook and syncRevenueCatStatus() to maintain sync
     func ensureUserSubscriptionRecord() async {
         do {
             let session = try await SupabaseManager.shared.client.auth.session
@@ -146,8 +125,12 @@ class SubscriptionService: ObservableObject {
             var lastName: String?
             
             // Try to get display_name from userMetadata
-            if let userMetadata = session.user.userMetadata as? [String: Any] {
-                let extracted = extractNameFromMetadata(userMetadata: userMetadata)
+            // userMetadata is [String: AnyJSON], convert to [String: Any] for extraction
+            let userMetadataDict = session.user.userMetadata.reduce(into: [String: Any]()) { result, pair in
+                result[pair.key] = pair.value
+            }
+            if !userMetadataDict.isEmpty {
+                let extracted = extractNameFromMetadata(userMetadata: userMetadataDict)
                 firstName = extracted.0
                 lastName = extracted.1
             }
@@ -164,7 +147,7 @@ class SubscriptionService: ObservableObject {
             if existing.isEmpty {
                 // Record doesn't exist - create it with minimal data
                 // IMPORTANT: Only set status to "inactive" when creating NEW records
-                // The Stripe webhook will update it to "trialing" or "active" when subscription is created
+                // The RevenueCat webhook or syncRevenueCatStatus() will update it when subscription is created
                 var insertData: [String: String] = [
                     "user_id": userId,
                     "status": "inactive"  // Only set for NEW records
@@ -186,7 +169,7 @@ class SubscriptionService: ObservableObject {
                 print("✅ Created new user_subscriptions record for user \(userId)")
             } else {
                 // Record exists - ONLY update name fields if they're missing
-                // DO NOT touch subscription status or Stripe-related fields!
+                // DO NOT touch subscription status or RevenueCat-related fields!
                 if let existingRecord = existing.first {
                     let needsUpdate = (existingRecord.firstName == nil || existingRecord.firstName?.isEmpty == true) && firstName != nil ||
                                       (existingRecord.lastName == nil || existingRecord.lastName?.isEmpty == true) && lastName != nil
@@ -211,7 +194,7 @@ class SubscriptionService: ObservableObject {
                         }
                     }
                 }
-                // If record exists, do nothing else - Stripe webhook manages subscription fields
+                // If record exists, do nothing else - RevenueCat webhook and syncRevenueCatStatus() manage subscription fields
             }
         } catch {
             print("❌ Failed to ensure user_subscriptions record: \(error)")
@@ -230,238 +213,200 @@ class SubscriptionService: ObservableObject {
             return cached
         }
         
-        print("🔄 Fetching fresh subscription status...")
+        // If there's already a fetch in progress, wait for it instead of starting a new one
+        if let existingTask = currentFetchTask {
+            print("ℹ️ Subscription fetch already in progress, waiting for existing request...")
+            return await existingTask.value
+        }
         
-        do {
+        // Create a new fetch task
+        let fetchTask = Task<UserSubscription?, Never> {
+            print("🔄 Fetching fresh subscription status...")
+            
+            // Sync status from RevenueCat first (with deduplication)
+            await syncRevenueCatStatus()
+            
+            do {
+                let session = try await SupabaseManager.shared.client.auth.session
+                let userId = session.user.id.uuidString
+                
+                let subscriptions: [UserSubscription] = try await SupabaseManager.shared.client
+                    .from("user_subscriptions")
+                    .select()
+                    .eq("user_id", value: userId)
+                    .order("created_at", ascending: false)
+                    .limit(1)
+                    .execute()
+                    .value
+                
+                await MainActor.run {
+                    self.currentSubscription = subscriptions.first
+                    self.lastFetchTime = Date()
+                    self.currentFetchTask = nil // Clear task reference when done
+                }
+                
+                print("✅ Subscription status updated: \(subscriptions.first?.status ?? "none")")
+                
+                return subscriptions.first
+            } catch {
+                let nsError = error as NSError
+                if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                    print("ℹ️ Subscription fetch cancelled (likely superseded by a newer request).")
+                    await MainActor.run {
+                        self.currentFetchTask = nil // Clear task reference
+                    }
+                    return await MainActor.run {
+                        self.currentSubscription
+                    }
+                }
+                await MainActor.run {
+                    self.errorMessage = "Failed to fetch subscription: \(error.localizedDescription)"
+                    self.currentFetchTask = nil // Clear task reference
+                }
+                print("❌ Failed to fetch subscription status: \(error)")
+                return nil
+            }
+        }
+        
+        // Store the task and await its result
+        await MainActor.run {
+            self.currentFetchTask = fetchTask
+        }
+        
+        return await fetchTask.value
+    }
+    
+    // MARK: - Sync RevenueCat Status
+    /// Syncs subscription status from RevenueCat to database
+    /// This ensures database is up-to-date with RevenueCat's latest status
+    /// Uses request deduplication to prevent concurrent syncs
+    private func syncRevenueCatStatus() async {
+        // If there's already a sync in progress, wait for it instead of starting a new one
+        if let existingTask = currentSyncTask {
+            print("ℹ️ RevenueCat sync already in progress, waiting for existing sync...")
+            await existingTask.value
+            return
+        }
+        
+        // Create a new sync task
+        let syncTask = Task<Void, Never> {
+            do {
+            // Get customer info directly from RevenueCat to access transaction IDs
+            let customerInfo = try await revenueCatProvider.getCustomerInfo()
+            
+            // Get user ID
             let session = try await SupabaseManager.shared.client.auth.session
             let userId = session.user.id.uuidString
             
-            let subscriptions: [UserSubscription] = try await SupabaseManager.shared.client
+            // Get RevenueCat user ID
+            // After logIn(), the app user ID is the Supabase user ID
+            // We use the userId directly since that's what we set with logIn()
+            let revenueCatUserId = userId
+            
+            // Find active entitlement
+            var entitlement = customerInfo.entitlements[Config.revenueCatEntitlementID]
+            
+            // Fallback: Check for any active entitlement
+            if entitlement == nil || entitlement?.isActive != true {
+                for (_, ent) in customerInfo.entitlements.all {
+                    if ent.isActive == true {
+                        entitlement = ent
+                        break
+                    }
+                }
+            }
+            
+            // Get status from RevenueCat (for status string)
+            guard let status = await revenueCatProvider.getSubscriptionStatus() else {
+                return
+            }
+            
+            // Create date formatter for ISO8601
+            let dateFormatter = ISO8601DateFormatter()
+            dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            
+            // Build upsert data (all values must be String or String?)
+            var upsertData: [String: String?] = [
+                "user_id": userId,
+                "revenuecat_user_id": revenueCatUserId,
+                "status": status.status,
+                "entitlement_status": status.isActive ? "active" : "inactive",
+                "updated_at": dateFormatter.string(from: Date())
+            ]
+            
+            // Add optional date fields
+            if let periodEnd = status.periodEndDate {
+                upsertData["current_period_end"] = dateFormatter.string(from: periodEnd)
+            }
+            
+            if let trialEnd = status.trialEndDate {
+                upsertData["trial_end"] = dateFormatter.string(from: trialEnd)
+            }
+            
+            // Note: Transaction IDs are not directly available from EntitlementInfo in iOS SDK
+            // Transaction IDs should be set by the RevenueCat webhook, which is the authoritative source
+            // We don't set them here to avoid incorrect values (like using entitlement.identifier)
+            // The webhook will populate revenuecat_subscription_id and original_transaction_id correctly
+            print("ℹ️ Transaction IDs are managed by RevenueCat webhook, not app-side sync")
+            
+            // Upsert to database
+            _ = try await SupabaseManager.shared.client
                 .from("user_subscriptions")
-                .select()
-                .eq("user_id", value: userId)
-                .order("created_at", ascending: false)
-                .limit(1)
+                .upsert(upsertData, onConflict: "user_id")
                 .execute()
-                .value
             
-            await MainActor.run {
-                self.currentSubscription = subscriptions.first
-                self.lastFetchTime = Date()
-            }
-            
-            print("✅ Subscription status updated: \(subscriptions.first?.status ?? "none")")
-            
-            return subscriptions.first
-        } catch {
-            let nsError = error as NSError
-            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
-                print("ℹ️ Subscription fetch cancelled (likely superseded by a newer request).")
-                return await MainActor.run {
-                    self.currentSubscription
+                print("✅ Synced RevenueCat status to database")
+            } catch {
+                let nsError = error as NSError
+                // Don't log cancelled errors as failures - they're expected when requests are deduplicated
+                if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                    print("ℹ️ RevenueCat sync cancelled (likely superseded by a newer request)")
+                } else {
+                    print("⚠️ Failed to sync RevenueCat status: \(error)")
                 }
+                // Don't throw - this is a background sync
             }
+            
+            // Clear task reference when done
             await MainActor.run {
-                self.errorMessage = "Failed to fetch subscription: \(error.localizedDescription)"
+                self.currentSyncTask = nil
             }
-            print("❌ Failed to fetch subscription status: \(error)")
-            return nil
+        }
+        
+        // Store the task and await its result
+        await MainActor.run {
+            self.currentSyncTask = syncTask
+        }
+        
+        await syncTask.value
+    }
+    
+    // MARK: - Purchase Package
+    /// Initiates RevenueCat native purchase flow for a package
+    func purchase(package: Package, skipTrial: Bool = false) async throws -> URL {
+        // Use RevenueCat provider to handle purchase
+        let result = try await revenueCatProvider.purchase(package: package, skipTrial: skipTrial)
+        
+        switch result {
+        case .success:
+            // Purchase happens natively - return success deep link
+            return URL(string: "thedailydev://subscription-success")!
+        case .cancelled:
+            throw SubscriptionError.networkError // User cancelled
+        case .failed(let error):
+            throw error
         }
     }
     
-    // MARK: - Create Checkout Session
-    func createCheckoutSession(plan: SubscriptionPlan? = nil) async throws -> URL {
-        guard let functionURL = getFunctionURL(functionName: "create-checkout-session") else {
-            print("❌ Failed to get function URL")
+    // MARK: - Get Checkout URL / Purchase (Legacy - for compatibility)
+    /// Legacy method for compatibility - purchases monthly package by default
+    @available(*, deprecated, message: "Use purchase(package:) instead")
+    func getCheckoutURL(plan: Any? = nil, skipTrial: Bool = false) async throws -> URL {
+        // Default to monthly package
+        guard let monthlyPackage = try await getMonthlyPackage() else {
             throw SubscriptionError.invalidConfiguration
         }
-        
-        let session = try await SupabaseManager.shared.client.auth.session
-        let userId = session.user.id.uuidString
-        
-        var request = URLRequest(url: functionURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(session.accessToken)", 
-                        forHTTPHeaderField: "Authorization")
-        
-        // Use provided plan or fetch default monthly plan
-        let planToUse: SubscriptionPlan
-        if let providedPlan = plan {
-            planToUse = providedPlan
-        } else {
-            guard let fetchedPlan = await fetchCurrentPlan() else {
-                throw SubscriptionError.invalidConfiguration
-            }
-            planToUse = fetchedPlan
-        }
-        
-        let body = [
-            "user_id": userId,
-            "price_id": planToUse.stripePriceId
-        ]
-        
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            print("❌ Invalid response type")
-            throw SubscriptionError.networkError
-        }
-        
-        guard httpResponse.statusCode == 200 else {
-            print("❌ Non-200 status code: \(httpResponse.statusCode)")
-            throw SubscriptionError.networkError
-        }
-        
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            print("❌ Failed to parse JSON")
-            throw SubscriptionError.invalidResponse
-        }
-        
-        guard let checkoutURLString = json["url"] as? String else {
-            print("❌ 'url' key not found in response")
-            throw SubscriptionError.invalidResponse
-        }
-        
-        guard let checkoutURL = URL(string: checkoutURLString) else {
-            print("❌ Invalid URL string: \(checkoutURLString)")
-            throw SubscriptionError.invalidResponse
-        }
-        
-        return checkoutURL
-    }
-    
-    // MARK: - Get Checkout URL
-    /// Returns the pre-created Stripe checkout link with user identification appended for reliable linking
-    /// Uses client_reference_id (primary) and customer_email (fallback) to ensure webhook can match user
-    func getCheckoutURL(plan: SubscriptionPlan? = nil, skipTrial: Bool = false) async throws -> URL {
-        // Get the current authenticated user
-        let authSession = try await SupabaseManager.shared.client.auth.session
-        let userEmail = authSession.user.email ?? ""
-        let userId = authSession.user.id.uuidString
-        
-        // Use provided plan or fetch default monthly plan
-        let planToUse: SubscriptionPlan
-        if let providedPlan = plan {
-            planToUse = providedPlan
-        } else {
-            guard let fetchedPlan = await fetchCurrentPlan(forceRefresh: true) else {
-                throw SubscriptionError.invalidConfiguration
-            }
-            planToUse = fetchedPlan
-        }
-        
-        // Select the appropriate checkout link based on skipTrial flag
-        let checkoutURLString: String?
-        if skipTrial {
-            checkoutURLString = planToUse.checkoutLinkNoTrial
-        } else {
-            checkoutURLString = planToUse.checkoutLinkTrial
-        }
-        
-        guard var urlString = checkoutURLString, !urlString.isEmpty else {
-            print("❌ No checkout link found for plan: \(planToUse.name), skipTrial: \(skipTrial)")
-            print("   Make sure to add checkout_link_trial and checkout_link_no_trial to subscription_plans table")
-            throw SubscriptionError.invalidConfiguration
-        }
-        
-        // Append query parameters for reliable user linking:
-        // 1. client_reference_id: Primary method - Stripe includes this in webhook events
-        // 2. customer_email: Pre-fills email and helps with fallback matching
-        let separator = urlString.contains("?") ? "&" : "?"
-        
-        // Add client_reference_id (most reliable - Stripe includes this in webhook events)
-        if let encodedUserId = userId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            urlString = "\(urlString)\(separator)client_reference_id=\(encodedUserId)"
-            print("🔗 Appending client_reference_id to checkout URL: \(userId)")
-        }
-        
-        // Add customer_email for pre-filling and fallback matching
-        if !userEmail.isEmpty {
-            if let encodedEmail = userEmail.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-                urlString = "\(urlString)&customer_email=\(encodedEmail)"
-                print("📧 Appending customer_email to checkout URL: \(userEmail)")
-            }
-        }
-        
-        guard let checkoutURL = URL(string: urlString) else {
-            print("❌ Invalid checkout URL string: \(urlString)")
-            throw SubscriptionError.invalidConfiguration
-        }
-        
-        print("✅ Using checkout link for plan: \(planToUse.name), skipTrial: \(skipTrial), email: \(userEmail)")
-        return checkoutURL
-    }
-    
-    // MARK: - Initiate Trial Setup (Deprecated - use getCheckoutURL instead)
-    /// Deprecated: Use getCheckoutURL instead which uses pre-created Stripe checkout links
-    @available(*, deprecated, message: "Use getCheckoutURL instead which uses pre-created checkout links")
-    func initiateTrialSetup(plan: SubscriptionPlan? = nil, skipTrial: Bool = false) async throws -> URL {
-        return try await getCheckoutURL(plan: plan, skipTrial: skipTrial)
-    }
-    
-    // MARK: - Complete Trial Setup (Step 2: Create Subscription with Trial)
-    func completeTrialSetup(sessionId: String, plan: SubscriptionPlan? = nil) async throws {
-        guard let functionURL = getFunctionURL(functionName: "complete-trial-setup") else {
-            print("❌ Failed to get function URL")
-            throw SubscriptionError.invalidConfiguration
-        }
-        
-        let session = try await SupabaseManager.shared.client.auth.session
-        let userId = session.user.id.uuidString
-        
-        var request = URLRequest(url: functionURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(session.accessToken)",
-                        forHTTPHeaderField: "Authorization")
-        
-        // Use provided plan or fetch default monthly plan
-        // The price_id should also be in the session metadata from initiateTrialSetup
-        let planToUse: SubscriptionPlan
-        if let providedPlan = plan {
-            planToUse = providedPlan
-        } else {
-            guard let fetchedPlan = await fetchCurrentPlan() else {
-                throw SubscriptionError.invalidConfiguration
-            }
-            planToUse = fetchedPlan
-        }
-        
-        let body = [
-            "user_id": userId,
-            "session_id": sessionId,
-            "price_id": planToUse.stripePriceId
-        ]
-        
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            print("❌ Invalid response type")
-            throw SubscriptionError.networkError
-        }
-        
-        guard httpResponse.statusCode == 200 else {
-            print("❌ Non-200 status code: \(httpResponse.statusCode)")
-            // Try to parse error message from response
-            if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let errorMessage = errorJson["error"] as? String {
-                print("❌ Error from server: \(errorMessage)")
-                if let details = errorJson["details"] as? String {
-                    print("❌ Error details: \(details)")
-                }
-            } else if let responseString = String(data: data, encoding: .utf8) {
-                print("❌ Response body: \(responseString)")
-            }
-            throw SubscriptionError.networkError
-        }
-        
-        // Refresh subscription status
-        _ = await fetchSubscriptionStatus()
+        return try await purchase(package: monthlyPackage, skipTrial: skipTrial)
     }
     
     // MARK: - Check if User Can Access Questions
@@ -495,93 +440,24 @@ class SubscriptionService: ObservableObject {
     
     // MARK: - Cancel Subscription
     func cancelSubscription() async throws {
-        guard let subscription = currentSubscription,
-              let stripeSubscriptionId = subscription.stripeSubscriptionId,
-              let functionURL = getFunctionURL(functionName: "cancel-subscription") else {
-            throw SubscriptionError.noActiveSubscription
-        }
-        
-        let session = try await SupabaseManager.shared.client.auth.session
-        
-        var request = URLRequest(url: functionURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(session.accessToken)", 
-                        forHTTPHeaderField: "Authorization")
-        
-        let body = ["subscription_id": stripeSubscriptionId]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (_, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw SubscriptionError.networkError
-        }
+        try await revenueCatProvider.cancelSubscription()
         
         // Refresh subscription status
-        _ = await fetchSubscriptionStatus()
+        _ = await fetchSubscriptionStatus(forceRefresh: true)
     }
     
-    // MARK: - Get Billing Portal URL
+    // MARK: - Get Billing Portal URL / Management URL
+    /// Returns URL for subscription management (RevenueCat Customer Center or App Store)
     func getBillingPortalURL() async throws -> URL {
-        // Make sure we have a subscription
-        await fetchSubscriptionStatus()
+        return try await revenueCatProvider.getManagementURL()
+    }
+    
+    // MARK: - Restore Purchases
+    func restorePurchases() async throws {
+        try await revenueCatProvider.restorePurchases()
         
-        guard let subscription = currentSubscription else {
-            print("❌ No subscription found")
-            throw SubscriptionError.noActiveSubscription
-        }
-        
-        guard let stripeCustomerId = subscription.stripeCustomerId else {
-            print("❌ No Stripe customer ID")
-            throw SubscriptionError.noActiveSubscription
-        }
-        
-        guard let functionURL = getFunctionURL(functionName: "create-billing-portal-session") else {
-            print("❌ Failed to get function URL")
-            throw SubscriptionError.invalidConfiguration
-        }
-        
-        let session = try await SupabaseManager.shared.client.auth.session
-        
-        var request = URLRequest(url: functionURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(session.accessToken)", 
-                        forHTTPHeaderField: "Authorization")
-        
-        let body = ["customer_id": stripeCustomerId]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            print("❌ Invalid response type")
-            throw SubscriptionError.networkError
-        }
-        
-        guard httpResponse.statusCode == 200 else {
-            print("❌ Non-200 status code: \(httpResponse.statusCode)")
-            throw SubscriptionError.networkError
-        }
-        
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            print("❌ Failed to parse JSON")
-            throw SubscriptionError.invalidResponse
-        }
-        
-        guard let urlString = json["url"] as? String else {
-            print("❌ 'url' key not found in response")
-            throw SubscriptionError.invalidResponse
-        }
-        
-        guard let url = URL(string: urlString) else {
-            print("❌ Invalid URL string: \(urlString)")
-            throw SubscriptionError.invalidResponse
-        }
-        
-        return url
+        // Refresh subscription status
+        _ = await fetchSubscriptionStatus(forceRefresh: true)
     }
 }
 

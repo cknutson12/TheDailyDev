@@ -20,7 +20,7 @@ The Daily Dev delivers curated system design questions daily, featuring multiple
 - **Progress Tracking**: GitHub-style contribution graphs showing your answer history
 - **Category Performance**: Detailed analytics by topic category
 - **Streak System**: Maintain daily learning streaks with visual indicators
-- **Subscription Management**: Stripe-powered subscription system with Supabase webhooks
+- **Subscription Management**: RevenueCat-powered subscription system with native iOS in-app purchases
 - **OAuth Authentication**: Sign in with Google, GitHub, or email/password
 - **Email Verification & Password Reset**: Full authentication flow with custom SMTP (Resend)
 - **Dark Theme**: Modern dark UI with green accents (#37BF84)
@@ -32,7 +32,7 @@ The Daily Dev delivers curated system design questions daily, featuring multiple
 - **Frontend**: SwiftUI (iOS 17.5+)
 - **Backend**: Supabase (PostgreSQL, Auth, Storage, Edge Functions)
 - **Authentication**: Supabase Auth with OAuth (Google, GitHub) and Email/Password
-- **Payments**: Stripe (via Supabase Edge Functions)
+- **Payments**: RevenueCat (native iOS in-app purchases via StoreKit)
 - **Email Service**: Resend (custom SMTP)
 
 ### Design Pattern
@@ -86,7 +86,9 @@ The application follows the MVVM (Model-View-ViewModel) architecture with a serv
 - **`SupabaseManager.swift`**: Singleton managing Supabase client initialization and auth helpers
 - **`AuthManager.swift`**: Centralized authentication state management and OAuth handling
 - **`QuestionService.swift`**: Question fetching, answer submission, and progress tracking
-- **`SubscriptionService.swift`**: Stripe checkout, subscription status, and billing portal
+- **`SubscriptionService.swift`**: RevenueCat subscription management, status checking, and billing portal
+- **`RevenueCatSubscriptionProvider.swift`**: RevenueCat SDK integration and purchase handling
+- **`RevenueCatPaywallView.swift`**: Native RevenueCat paywall UI
 - **`ImageHelper.swift`**: Image caching and display utilities
 
 ### Models
@@ -137,10 +139,13 @@ The application follows the MVVM (Model-View-ViewModel) architecture with a serv
 ```sql
 - id (uuid, primary key)
 - user_id (uuid, foreign key to auth.users)
-- stripe_customer_id (text, nullable)
-- stripe_subscription_id (text, nullable)
-- status (text: active, canceled, past_due, etc.)
+- revenuecat_user_id (text, nullable)
+- revenuecat_subscription_id (text, nullable)
+- entitlement_status (text: active, expired, billing_issue, paused)
+- original_transaction_id (text, nullable)
+- status (text: active, trialing, inactive, past_due, paused)
 - current_period_end (timestamp, nullable)
+- trial_end (timestamp, nullable)
 - first_name (text, nullable)
 - last_name (text, nullable)
 - created_at (timestamp)
@@ -163,23 +168,11 @@ All tables have RLS enabled with policies:
 
 ### Supabase Edge Functions
 
-**`create-checkout-session`**:
-- Creates Stripe checkout session
-- Returns checkout URL
-- Requires authenticated user
-
-**`stripe-webhook`**:
-- Handles Stripe webhook events
+**`revenuecat-webhook`**:
+- Handles RevenueCat webhook events
 - Updates `user_subscriptions` table
-- Processes: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
-
-**`cancel-subscription`**:
-- Cancels Stripe subscription
-- Updates subscription status in database
-
-**`create-billing-portal-session`**:
-- Creates Stripe billing portal session
-- Returns portal URL for subscription management
+- Processes: `INITIAL_PURCHASE`, `RENEWAL`, `CANCELLATION`, `BILLING_ISSUE`, `SUBSCRIPTION_PAUSED`, `EXPIRATION`, etc.
+- Requires `REVENUECAT_WEBHOOK_SECRET` environment variable
 
 ### Authentication
 
@@ -198,19 +191,23 @@ All tables have RLS enabled with policies:
 - Email verification required for new accounts
 - Password reset emails via deep links
 
-### Stripe Integration
+### RevenueCat Integration
 
-**Products**:
-- Monthly subscription: $8/month
-- Price ID: `price_1SMViRLKbK8V5YM1xkjiJfnz`
+**Products** (configured in App Store Connect):
+- Monthly subscription
+- Yearly subscription
+
+**Entitlements**:
+- `The Daily Dev Pro` - Main subscription entitlement
 
 **Webhooks**:
-- Endpoint: Your Supabase Edge Function URL
-- Events: `checkout.session.completed`, `customer.subscription.*`
+- Endpoint: Your Supabase Edge Function URL (`revenuecat-webhook`)
+- Authorization: Bearer token via `REVENUECAT_WEBHOOK_SECRET`
+- Events: All subscription lifecycle events
 
-**Deep Link Returns**:
-- Success: `thedailydev://subscription-success`
-- Cancel: `thedailydev://subscription-cancel`
+**Setup**:
+- See `REVENUECAT_SETUP.md` for detailed setup instructions
+- See `SETUP_STEPS.md` for step-by-step guide
 
 ## 🚀 Setup Instructions
 
@@ -220,7 +217,8 @@ All tables have RLS enabled with policies:
 - Xcode 15.0+
 - iOS 17.5+ device or simulator
 - Supabase account
-- Stripe account
+- RevenueCat account
+- Apple Developer account (for App Store Connect)
 - Resend account (for custom SMTP)
 
 ### 1. Clone the Repository
@@ -248,14 +246,16 @@ cd TheDailyDev
    - `thedailydev://email-confirm`
    - `thedailydev://password-reset`
 
-### 3. Configure Stripe
+### 3. Configure RevenueCat
 
-1. Create a Stripe account
-2. Create a monthly subscription product ($8/month)
-3. Note the Price ID
-4. Deploy Supabase Edge Functions (see `supabase/functions/`)
-5. Set up webhook endpoint pointing to your `stripe-webhook` Edge Function
-6. Add webhook events: `checkout.session.completed`, `customer.subscription.*`
+1. Create a RevenueCat account
+2. Create products in App Store Connect (monthly and yearly)
+3. Create entitlement: `The Daily Dev Pro`
+4. Create offerings and packages in RevenueCat dashboard
+5. Deploy Supabase Edge Function: `supabase/functions/revenuecat-webhook/`
+6. Set up webhook in RevenueCat dashboard pointing to your Edge Function
+7. Configure webhook secret in Supabase Edge Function secrets
+8. See `REVENUECAT_SETUP.md` and `SETUP_STEPS.md` for detailed instructions
 
 ### 4. Configure Xcode Project
 
@@ -271,6 +271,8 @@ cd TheDailyDev
     <string>https://your-project.supabase.co</string>
     <key>SUPABASE_ANON_KEY</key>
     <string>your-anon-key</string>
+    <key>REVENUECAT_API_KEY</key>
+    <string>your-revenuecat-api-key</string>
 </dict>
 </plist>
 ```
@@ -290,6 +292,7 @@ cd TheDailyDev
 
 The project uses Swift Package Manager. Dependencies will be resolved automatically:
 - Supabase-Swift
+- RevenueCat iOS SDK (`https://github.com/RevenueCat/purchases-ios-spm.git`)
 - HTTPTypes
 
 ### 6. Build & Run
@@ -311,15 +314,15 @@ The project uses Swift Package Manager. Dependencies will be resolved automatica
 - [ ] Answer an ordering question
 - [ ] View contribution graph
 - [ ] Check streak counter
-- [ ] Subscribe via Stripe Checkout
-- [ ] View billing portal
-- [ ] Cancel subscription
+- [ ] Subscribe via RevenueCat paywall
+- [ ] View subscription details
+- [ ] Manage subscription via App Store
 - [ ] Forgot password flow
 - [ ] Reset password flow
 
 ### Test Accounts
 
-Use Stripe test mode with test card: `4242 4242 4242 4242`
+Use RevenueCat test mode with StoreKit test environment. See `LOCAL_TESTING_PLAN.md` for testing instructions.
 
 ## 📝 Contributing
 
@@ -450,7 +453,7 @@ For licensing inquiries or permission requests, please contact: [Your Contact In
 ## 🙏 Acknowledgments
 
 - **Supabase**: Backend-as-a-Service platform
-- **Stripe**: Payment processing
+- **RevenueCat**: Subscription management and analytics
 - **Resend**: Email delivery service
 - **Swift Community**: For excellent tooling and libraries
 

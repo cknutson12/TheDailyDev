@@ -20,7 +20,6 @@ struct HomeView: View {
     @State private var canAccessQuestions = false
     @State private var hasAnsweredBefore = false
     @State private var showingFirstQuestionComplete = false
-    @State private var currentPlan: SubscriptionPlan?
     
     // Splash messages (Minecraft-style)
     private let splashMessages = [
@@ -95,8 +94,6 @@ struct HomeView: View {
             // Force refresh subscription status immediately on view load
             _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
             await loadInitialData()
-            // Fetch current plan for pricing display
-            currentPlan = await subscriptionService.fetchCurrentPlan()
             // Re-check access status after subscription is loaded
             let canAccess = await subscriptionService.canAccessQuestions()
             let answered = await QuestionService.shared.hasAnsweredToday()
@@ -284,17 +281,10 @@ struct HomeView: View {
                             .bold()
                             .foregroundColor(.white)
                         
-                        if let plan = currentPlan {
-                            Text("Get \(plan.trialDays) days free, then \(plan.formattedPrice)")
-                                .font(.body)
-                                .foregroundColor(Color.theme.textSecondary)
-                                .multilineTextAlignment(.center)
-                        } else {
-                            Text("Get 7 days free, then $4.99/month")
-                                .font(.body)
-                                .foregroundColor(Color.theme.textSecondary)
-                                .multilineTextAlignment(.center)
-                        }
+                        Text("Start your free trial today")
+                            .font(.body)
+                            .foregroundColor(Color.theme.textSecondary)
+                            .multilineTextAlignment(.center)
                         
                         Text("Or wait until Friday for your next free question")
                             .font(.caption)
@@ -410,13 +400,7 @@ struct HomeView: View {
             showingSubscriptionBenefits = false
         }
         .sheet(isPresented: $showingSubscriptionBenefits) {
-            SubscriptionBenefitsView(
-                onSubscribe: { plan, skipTrial in
-                    Task {
-                        await handleSubscription(plan: plan, skipTrial: skipTrial)
-                    }
-                }
-            )
+            SubscriptionBenefitsView()
         }
         .sheet(isPresented: $showingFirstQuestionComplete) {
             FirstQuestionCompleteView()
@@ -485,18 +469,6 @@ struct HomeView: View {
         }
     }
     
-    // MARK: - Handle Subscription
-    private func handleSubscription(plan: SubscriptionPlan, skipTrial: Bool = false) async {
-        do {
-            // Use the new trial flow for all subscription signups
-            let checkoutURL = try await subscriptionService.getCheckoutURL(plan: plan, skipTrial: skipTrial)
-            await MainActor.run {
-                UIApplication.shared.open(checkoutURL)
-            }
-        } catch {
-            print("Failed to initiate trial setup: \(error)")
-        }
-    }
     
     private func checkIfAnsweredToday() async {
         let answered = await QuestionService.shared.hasAnsweredToday()

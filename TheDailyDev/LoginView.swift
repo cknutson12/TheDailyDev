@@ -184,6 +184,10 @@ struct LoginView: View {
             } else {
                 // Successfully logged in - update auth manager
                 await AuthManager.shared.checkSession()
+                // Set RevenueCat user ID
+                await AuthManager.shared.setRevenueCatUserID()
+                // Ensure user_subscriptions record exists
+                await SubscriptionService.shared.ensureUserSubscriptionRecord()
                 isLoggedIn = true
             }
         } catch {
@@ -205,6 +209,8 @@ struct LoginView: View {
             )
             // If we got a session, the user is already signed in
             await AuthManager.shared.checkSession()
+            // Set RevenueCat user ID
+            await AuthManager.shared.setRevenueCatUserID()
             // Ensure user_subscriptions record exists
             await SubscriptionService.shared.ensureUserSubscriptionRecord()
             await MainActor.run {
@@ -228,6 +234,8 @@ struct LoginView: View {
             )
             // If we got a session, the user is already signed in
             await AuthManager.shared.checkSession()
+            // Set RevenueCat user ID
+            await AuthManager.shared.setRevenueCatUserID()
             // Ensure user_subscriptions record exists
             await SubscriptionService.shared.ensureUserSubscriptionRecord()
             await MainActor.run {

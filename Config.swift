@@ -25,6 +25,26 @@ struct Config {
         return URL(string: "\(supabaseURL)/functions/v1/\(functionName)")
     }
     
+    // MARK: - RevenueCat Configuration
+    static var revenueCatAPIKey: String {
+        guard let path = Bundle.main.path(forResource: "Config-Secrets", ofType: "plist"),
+              let plist = NSDictionary(contentsOfFile: path),
+              let key = plist["REVENUECAT_API_KEY"] as? String else {
+            // Fallback to test key if not in plist (for development)
+            return "test_vWiKnNMjHYYzrbfAPbKvqqsYhgE"
+        }
+        return key
+    }
+    
+    // RevenueCat Entitlement Identifier
+    // NOTE: This must match the entitlement identifier in RevenueCat dashboard
+    // If you see "The Daily Dev Pro" in logs, update this to match
+    static let revenueCatEntitlementID = "The Daily Dev Pro"
+    
+    // RevenueCat Product Identifiers (must match App Store Connect)
+    static let revenueCatMonthlyProductID = "monthly"
+    static let revenueCatYearlyProductID = "yearly"
+    
     // MARK: - Legal URLs
     // TODO: Replace with your actual URLs once you have them hosted
     static var privacyPolicyURL: String {

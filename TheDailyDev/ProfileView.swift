@@ -159,13 +159,7 @@ struct ProfileView: View {
             showingSubscriptionBenefits = false
         }
         .sheet(isPresented: $showingSubscriptionBenefits) {
-            SubscriptionBenefitsView(
-                onSubscribe: { plan, skipTrial in
-                    Task {
-                        await handleSubscription(plan: plan, skipTrial: skipTrial)
-                    }
-                }
-            )
+            SubscriptionBenefitsView()
         }
         .sheet(isPresented: $showingSubscriptionSettings) {
             if let subscription = subscriptionService.currentSubscription {
@@ -183,17 +177,6 @@ struct ProfileView: View {
         }
     }
     
-    // MARK: - Handle Subscription
-    private func handleSubscription(plan: SubscriptionPlan, skipTrial: Bool = false) async {
-        do {
-            let checkoutURL = try await subscriptionService.getCheckoutURL(plan: plan, skipTrial: skipTrial)
-            await MainActor.run {
-                UIApplication.shared.open(checkoutURL)
-            }
-        } catch {
-            print("Failed to initiate trial setup: \(error)")
-        }
-    }
     
     // MARK: - Load User Data
     private func loadUserData() async {
@@ -265,7 +248,7 @@ struct ProfileView: View {
         await MainActor.run {
             self.isLoadingSubscription = true
         }
-        await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
+        _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
         await MainActor.run {
             self.isLoadingSubscription = false
         }

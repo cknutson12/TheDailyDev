@@ -28,6 +28,9 @@
 		7D9582712EAE8037008AFC8E /* SubscriptionBenefitsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D95826D2EAE8037008AFC8E /* SubscriptionBenefitsView.swift */; };
 		7D9582722EAE8037008AFC8E /* SubscriptionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D95826E2EAE8037008AFC8E /* SubscriptionModels.swift */; };
 		7D9582732EAE8037008AFC8E /* SubscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D95826F2EAE8037008AFC8E /* SubscriptionService.swift */; };
+		7D9582762EAE8037008AFC8E /* RevenueCatSubscriptionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9582772EAE8037008AFC8E /* RevenueCatSubscriptionProvider.swift */; };
+		7D9582782EAE8037008AFC8E /* RevenueCatPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9582792EAE8037008AFC8E /* RevenueCatPaywallView.swift */; };
+		7D9A3F0B2EEDD28100A9D697 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 7D9A3F0C2EEDD28100A9D697 /* RevenueCat */; };
 		7DCCAE012E9F30B2003A8156 /* TheDailyDevApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DCCAE002E9F30B2003A8156 /* TheDailyDevApp.swift */; };
 		7DCCAE032E9F30B2003A8156 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DCCAE022E9F30B2003A8156 /* ContentView.swift */; };
 		7DCCAE052E9F30B4003A8156 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7DCCAE042E9F30B4003A8156 /* Assets.xcassets */; };
@@ -53,7 +56,6 @@
 		H1I2I3I42ED66645008AFC8E /* FirstQuestionCompleteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = H1I2I3I32ED66645008AFC8E /* FirstQuestionCompleteView.swift */; };
 		I1J2J3J42ED77745008AFC8E /* SubscriptionDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = I1J2J3J32ED77745008AFC8E /* SubscriptionDetailsView.swift */; };
 		P1Q2R3S42ED88845008AFC8E /* PasswordResetManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = P1Q2R3S32ED88845008AFC8E /* PasswordResetManager.swift */; };
-		S1T2U3V42ED99945008AFC8E /* SubscriptionPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = S1T2U3V32ED99945008AFC8E /* SubscriptionPlan.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -96,6 +98,8 @@
 		7D95826F2EAE8037008AFC8E /* SubscriptionService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SubscriptionService.swift; sourceTree = "<group>"; };
 		7D9582712EAB0574008AFC8E /* CategoryPerformanceView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CategoryPerformanceView.swift; sourceTree = "<group>"; };
 		7D9582742EAE88BE008AFC8E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		7D9582772EAE8037008AFC8E /* RevenueCatSubscriptionProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RevenueCatSubscriptionProvider.swift; sourceTree = "<group>"; };
+		7D9582792EAE8037008AFC8E /* RevenueCatPaywallView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RevenueCatPaywallView.swift; sourceTree = "<group>"; };
 		7DCCADFD2E9F30B2003A8156 /* TheDailyDev.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TheDailyDev.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7DCCAE002E9F30B2003A8156 /* TheDailyDevApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheDailyDevApp.swift; sourceTree = "<group>"; };
 		7DCCAE022E9F30B2003A8156 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -123,7 +127,6 @@
 		H1I2I3I32ED66645008AFC8E /* FirstQuestionCompleteView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FirstQuestionCompleteView.swift; sourceTree = "<group>"; };
 		I1J2J3J32ED77745008AFC8E /* SubscriptionDetailsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SubscriptionDetailsView.swift; sourceTree = "<group>"; };
 		P1Q2R3S32ED88845008AFC8E /* PasswordResetManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PasswordResetManager.swift; sourceTree = "<group>"; };
-		S1T2U3V32ED99945008AFC8E /* SubscriptionPlan.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SubscriptionPlan.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -132,6 +135,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7DCCAE342EA1D043003A8156 /* Supabase in Frameworks */,
+				7D9A3F0B2EEDD28100A9D697 /* RevenueCat in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -193,6 +197,8 @@
 				7D95826D2EAE8037008AFC8E /* SubscriptionBenefitsView.swift */,
 				7D95826E2EAE8037008AFC8E /* SubscriptionModels.swift */,
 				7D95826F2EAE8037008AFC8E /* SubscriptionService.swift */,
+				7D9582772EAE8037008AFC8E /* RevenueCatSubscriptionProvider.swift */,
+				7D9582792EAE8037008AFC8E /* RevenueCatPaywallView.swift */,
 				7D95826C2EAE8037008AFC8E /* SubscriptionSettingsView.swift */,
 				I1J2J3J32ED77745008AFC8E /* SubscriptionDetailsView.swift */,
 				62C471132EAE8888008AFC8E /* FeedbackService.swift */,
@@ -212,7 +218,6 @@
 				F1G2G3G32ED44445008AFC8E /* ForgotPasswordView.swift */,
 				G1H2H3H32ED55545008AFC8E /* ResetPasswordView.swift */,
 				P1Q2R3S32ED88845008AFC8E /* PasswordResetManager.swift */,
-				S1T2U3V32ED99945008AFC8E /* SubscriptionPlan.swift */,
 				H1I2I3I32ED66645008AFC8E /* FirstQuestionCompleteView.swift */,
 				7DCCAE042E9F30B4003A8156 /* Assets.xcassets */,
 				7DCCAE062E9F30B4003A8156 /* Preview Content */,
@@ -266,6 +271,7 @@
 			name = TheDailyDev;
 			packageProductDependencies = (
 				7DCCAE332EA1D043003A8156 /* Supabase */,
+				7D9A3F0C2EEDD28100A9D697 /* RevenueCat */,
 			);
 			productName = TheDailyDev;
 			productReference = 7DCCADFD2E9F30B2003A8156 /* TheDailyDev.app */;
@@ -341,6 +347,7 @@
 			mainGroup = 7DCCADF42E9F30B2003A8156;
 			packageReferences = (
 				7DCCAE322EA1D042003A8156 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				7D9A3F0A2EEDD28100A9D697 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			productRefGroup = 7DCCADFE2E9F30B2003A8156 /* Products */;
 			projectDirPath = "";
@@ -406,7 +413,6 @@
 				F1G2G3G42ED44445008AFC8E /* ForgotPasswordView.swift in Sources */,
 				G1H2H3H42ED55545008AFC8E /* ResetPasswordView.swift in Sources */,
 				P1Q2R3S42ED88845008AFC8E /* PasswordResetManager.swift in Sources */,
-				S1T2U3V42ED99945008AFC8E /* SubscriptionPlan.swift in Sources */,
 				H1I2I3I42ED66645008AFC8E /* FirstQuestionCompleteView.swift in Sources */,
 				7D9582692EA86A33008AFC8E /* AdaptiveText.swift in Sources */,
 				7D95825D2EA45859008AFC8E /* QuestionService.swift in Sources */,
@@ -420,6 +426,8 @@
 				7D95826E2EAB0574008AFC8E /* ConfigTest.swift in Sources */,
 				7D9582702EAB0574008AFC8E /* CategoryPerformanceView.swift in Sources */,
 				7D9582732EAE8037008AFC8E /* SubscriptionService.swift in Sources */,
+				7D9582762EAE8037008AFC8E /* RevenueCatSubscriptionProvider.swift in Sources */,
+				7D9582782EAE8037008AFC8E /* RevenueCatPaywallView.swift in Sources */,
 				62C471142EAE8888008AFC8E /* FeedbackService.swift in Sources */,
 				F3E5F6F52EAE9999008AFC8E /* FeedbackView.swift in Sources */,
 			);
@@ -758,6 +766,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		7D9A3F0A2EEDD28100A9D697 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.50.1;
+			};
+		};
 		7DCCAE322EA1D042003A8156 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase-community/supabase-swift";
@@ -769,6 +785,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		7D9A3F0C2EEDD28100A9D697 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7D9A3F0A2EEDD28100A9D697 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
 		7DCCAE332EA1D043003A8156 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 7DCCAE322EA1D042003A8156 /* XCRemoteSwiftPackageReference "supabase-swift" */;

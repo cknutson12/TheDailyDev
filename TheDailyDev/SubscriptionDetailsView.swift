@@ -6,12 +6,13 @@
 //
 
 import SwiftUI
+import RevenueCat
 
 struct SubscriptionDetailsView: View {
     let subscription: UserSubscription
     @StateObject private var subscriptionService = SubscriptionService.shared
     @State private var errorMessage: String?
-    @State private var currentPlan: SubscriptionPlan?
+    @State private var subscriptionPrice: String?
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -53,11 +54,13 @@ struct SubscriptionDetailsView: View {
                     // Subscription Details Card
                     VStack(alignment: .leading, spacing: 16) {
                         // Price
-                        DetailRow(
-                            icon: "dollarsign.circle.fill",
-                            label: "Price",
-                            value: currentPlan?.formattedPrice ?? "$4.99/month"
-                        )
+                        if let price = subscriptionPrice {
+                            DetailRow(
+                                icon: "dollarsign.circle.fill",
+                                label: "Price",
+                                value: price
+                            )
+                        }
                         
                         Divider()
                             .background(Theme.Colors.border)
@@ -97,11 +100,12 @@ struct SubscriptionDetailsView: View {
                     
                     // Info Box
                     if subscription.isInTrial {
-                        let priceText = currentPlan?.formattedPrice ?? "$4.99/month"
-                        InfoBox(
-                            icon: "info.circle.fill",
-                            text: "Your card will be charged \(priceText) automatically when your trial ends. You can cancel anytime before then at no charge."
-                        )
+                        if let priceText = subscriptionPrice {
+                            InfoBox(
+                                icon: "info.circle.fill",
+                                text: "Your card will be charged \(priceText) automatically when your trial ends. You can cancel anytime before then at no charge."
+                            )
+                        }
                     } else if subscription.isActive {
                         InfoBox(
                             icon: "info.circle.fill",
@@ -121,7 +125,7 @@ struct SubscriptionDetailsView: View {
                     // Manage Subscription Button
                     if subscription.isActive {
                         Button(action: {
-                            openStripeBillingPortal()
+                            openBillingPortal()
                         }) {
                             HStack {
                                 Image(systemName: "gearshape.fill")
@@ -147,8 +151,8 @@ struct SubscriptionDetailsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
         .task {
-            // Fetch current plan for pricing display
-            currentPlan = await subscriptionService.fetchCurrentPlan()
+            // Fetch price from RevenueCat
+            await loadSubscriptionPrice()
         }
     }
     
@@ -163,7 +167,63 @@ struct SubscriptionDetailsView: View {
         return formatter.string(from: date)
     }
     
-    private func openStripeBillingPortal() {
+    private func loadSubscriptionPrice() async {
+        // Only fetch price if subscription is active
+        guard subscription.isActive else {
+            return
+        }
+        
+        // Always using RevenueCat now
+        
+        do {
+            let customerInfo = try await Purchases.shared.customerInfo()
+            
+            // Get the active entitlement
+            var activeEntitlement = customerInfo.entitlements[Config.revenueCatEntitlementID]
+            
+            // Fallback: Check for any active entitlement
+            if activeEntitlement == nil || activeEntitlement?.isActive != true {
+                activeEntitlement = customerInfo.entitlements.all.values.first { $0.isActive == true }
+            }
+            
+            guard let activeEntitlement = activeEntitlement,
+                  activeEntitlement.isActive == true else {
+                return
+            }
+            
+            let productIdentifier = activeEntitlement.productIdentifier
+            
+            // Get offerings to find the product
+            let offerings = try await Purchases.shared.offerings()
+            guard let currentOffering = offerings.current else {
+                return
+            }
+            
+            // Find the package/product that matches the product identifier
+            for package in currentOffering.availablePackages {
+                if package.storeProduct.productIdentifier == productIdentifier {
+                    let priceString = package.storeProduct.localizedPriceString
+                    
+                    // Determine billing period from product identifier
+                    let billingPeriod: String
+                    if productIdentifier.lowercased().contains("yearly") || productIdentifier.lowercased().contains("annual") {
+                        billingPeriod = "/year"
+                    } else {
+                        billingPeriod = "/month"
+                    }
+                    
+                    await MainActor.run {
+                        self.subscriptionPrice = "\(priceString)\(billingPeriod)"
+                    }
+                    return
+                }
+            }
+        } catch {
+            print("⚠️ Failed to load subscription price from RevenueCat: \(error)")
+        }
+    }
+    
+    private func openBillingPortal() {
         Task {
             do {
                 let portalURL = try await subscriptionService.getBillingPortalURL()
@@ -244,8 +304,10 @@ struct InfoBox: View {
             userId: "123",
             firstName: "Test",
             lastName: "User",
-            stripeCustomerId: "cus_123",
-            stripeSubscriptionId: "sub_123",
+            revenueCatUserId: nil,
+            revenueCatSubscriptionId: nil,
+            entitlementStatus: nil,
+            originalTransactionId: nil,
             status: "trialing",
             currentPeriodEnd: "2025-11-15T00:00:00Z",
             trialEnd: "2025-11-15T00:00:00Z",

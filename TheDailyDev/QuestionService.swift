@@ -29,6 +29,9 @@ class QuestionService: ObservableObject {
     private var displayNameFetchTime: Date?
     private let displayNameCacheTimeout: TimeInterval = 86400 // 24 hours
     
+    // Request deduplication - prevent concurrent requests
+    private var currentHasAnsweredTodayTask: Task<Bool, Never>?
+    
     private init() {}
     
     // MARK: - Cache Invalidation
@@ -48,6 +51,41 @@ class QuestionService: ObservableObject {
         todaysQuestion = nil
         errorMessage = nil
         print("🔄 Question cache invalidated - will fetch fresh question")
+    }
+    
+    /// Clear ALL caches - call on sign out to ensure no user data persists
+    func clearAllCaches() {
+        // Clear progress history cache
+        cachedProgressHistory = nil
+        progressHistoryFetchTime = nil
+        
+        // Clear answered today cache
+        cachedHasAnsweredToday = nil
+        hasAnsweredTodayFetchTime = nil
+        lastCheckedDate = nil
+        
+        // Clear has answered any cache
+        cachedHasAnsweredAny = nil
+        
+        // Clear streak cache
+        cachedStreak = nil
+        streakFetchTime = nil
+        streakCachedDate = nil
+        
+        // Clear display name cache
+        cachedDisplayName = nil
+        displayNameFetchTime = nil
+        
+        // Clear today's question
+        todaysQuestion = nil
+        errorMessage = nil
+        isLoading = false
+        
+        // Cancel any in-progress requests
+        currentHasAnsweredTodayTask?.cancel()
+        currentHasAnsweredTodayTask = nil
+        
+        print("🧹 All QuestionService caches cleared")
     }
     
     // MARK: - Fetch Today's Question
@@ -483,9 +521,17 @@ class QuestionService: ObservableObject {
             return cached
         }
         
-        print("🔄 Checking if answered today (\(todayDateString))...")
+        // If there's already a request in progress, wait for it instead of starting a new one
+        if let existingTask = currentHasAnsweredTodayTask {
+            print("ℹ️ 'Has answered today' check already in progress, waiting for existing request...")
+            return await existingTask.value
+        }
         
-        do {
+        // Create a new task
+        let checkTask = Task<Bool, Never> {
+            print("🔄 Checking if answered today (\(todayDateString))...")
+            
+            do {
             // Get today's question ID
             let challengeResponse: [DailyChallenge] = try await SupabaseManager.shared.client
                 .from("daily_challenges")
@@ -511,19 +557,46 @@ class QuestionService: ObservableObject {
                 .execute()
                 .value
             
-            let hasAnswered = !progressResponse.isEmpty
-            
-            // Cache the result for today
-            cachedHasAnsweredToday = hasAnswered
-            lastCheckedDate = todayDateString
-            hasAnsweredTodayFetchTime = Date()
-            print("✅ Answered today check cached: \(hasAnswered)")
-            
-            return hasAnswered
-        } catch {
-            print("❌ Failed to check if answered today: \(error)")
-            return false
+                let hasAnswered = !progressResponse.isEmpty
+                
+                // Cache the result for today
+                cachedHasAnsweredToday = hasAnswered
+                lastCheckedDate = todayDateString
+                hasAnsweredTodayFetchTime = Date()
+                print("✅ Answered today check cached: \(hasAnswered)")
+                
+                // Clear task reference when done
+                await MainActor.run {
+                    self.currentHasAnsweredTodayTask = nil
+                }
+                
+                return hasAnswered
+            } catch {
+                let nsError = error as NSError
+                // Don't log cancelled errors as failures - they're expected when requests are deduplicated
+                if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                    print("ℹ️ 'Has answered today' check cancelled (likely superseded by a newer request)")
+                    // Return cached value if available, otherwise false
+                    await MainActor.run {
+                        self.currentHasAnsweredTodayTask = nil
+                    }
+                    return cachedHasAnsweredToday ?? false
+                } else {
+                    print("❌ Failed to check if answered today: \(error)")
+                }
+                await MainActor.run {
+                    self.currentHasAnsweredTodayTask = nil
+                }
+                return false
+            }
         }
+        
+        // Store the task and await its result
+        await MainActor.run {
+            self.currentHasAnsweredTodayTask = checkTask
+        }
+        
+        return await checkTask.value
     }
     
     // MARK: - Helper Methods

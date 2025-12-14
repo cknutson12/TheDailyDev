@@ -13,8 +13,12 @@ struct UserSubscription: Codable, Identifiable {
     let userId: String
     let firstName: String?
     let lastName: String?
-    let stripeCustomerId: String?
-    let stripeSubscriptionId: String?
+    // RevenueCat fields
+    let revenueCatUserId: String?
+    let revenueCatSubscriptionId: String?
+    let entitlementStatus: String?
+    let originalTransactionId: String?
+    // Shared fields
     let status: String
     let currentPeriodEnd: String?
     let trialEnd: String?
@@ -26,8 +30,10 @@ struct UserSubscription: Codable, Identifiable {
         case userId = "user_id"
         case firstName = "first_name"
         case lastName = "last_name"
-        case stripeCustomerId = "stripe_customer_id"
-        case stripeSubscriptionId = "stripe_subscription_id"
+        case revenueCatUserId = "revenuecat_user_id"
+        case revenueCatSubscriptionId = "revenuecat_subscription_id"
+        case entitlementStatus = "entitlement_status"
+        case originalTransactionId = "original_transaction_id"
         case status
         case currentPeriodEnd = "current_period_end"
         case trialEnd = "trial_end"
@@ -35,8 +41,24 @@ struct UserSubscription: Codable, Identifiable {
         case updatedAt = "updated_at"
     }
     
+    /// Determines if the user has active subscription access
+    /// Checks both status and entitlement_status to handle all RevenueCat states
     var isActive: Bool {
-        status == "active" || status == "trialing"
+        // Check subscription status - these indicate user should have access
+        let hasActiveStatus = ["active", "trialing", "past_due", "paused"].contains(status)
+        
+        // Check entitlement status - these indicate user has access
+        // If entitlement_status is nil, assume active for backward compatibility
+        let hasActiveEntitlement: Bool
+        if let entitlementStatus = entitlementStatus {
+            hasActiveEntitlement = ["active", "billing_issue", "paused"].contains(entitlementStatus)
+        } else {
+            // Backward compatibility: if entitlement_status is nil, check status only
+            hasActiveEntitlement = hasActiveStatus
+        }
+        
+        // User has access if both status and entitlement are active
+        return hasActiveStatus && hasActiveEntitlement
     }
     
     var isInTrial: Bool {
@@ -59,6 +81,7 @@ struct UserSubscription: Codable, Identifiable {
     
     // Get access status message
     var accessStatusMessage: String {
+        // Handle trial status
         if isInTrial {
             if let trialEndString = trialEnd,
                let trialEndDate = ISO8601DateFormatter().date(from: trialEndString) {
@@ -69,11 +92,34 @@ struct UserSubscription: Codable, Identifiable {
             return "Free trial active"
         }
         
-        if status == "active" {
+        // Handle different subscription statuses
+        switch status {
+        case "active":
             return "Active subscription"
+            
+        case "trialing":
+            return "Free trial active"
+            
+        case "past_due":
+            return "Payment issue - please update payment method"
+            
+        case "paused":
+            return "Subscription paused"
+            
+        case "inactive":
+            // Check entitlement_status for more context
+            if entitlementStatus == "expired" {
+                return "Subscription expired"
+            } else if entitlementStatus == "billing_issue" {
+                return "Payment issue - please update payment method"
+            } else {
+                return "Subscription required"
+            }
+            
+        default:
+            // Unknown status - default message
+            return "Subscription required"
         }
-        
-        return "Subscription required"
     }
     
     // Format billing date
