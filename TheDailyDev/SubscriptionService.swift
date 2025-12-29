@@ -115,24 +115,28 @@ class SubscriptionService: ObservableObject {
     /// Ensures a user_subscriptions record exists for the user, but NEVER modifies subscription status
     /// WARNING: DO NOT modify status or RevenueCat-related fields here!
     /// Those fields are ONLY managed by the RevenueCat webhook and syncRevenueCatStatus() to maintain sync
-    func ensureUserSubscriptionRecord() async {
+    /// - Parameters:
+    ///   - firstName: Optional first name to set if creating new record
+    ///   - lastName: Optional last name to set if creating new record
+    func ensureUserSubscriptionRecord(firstName: String? = nil, lastName: String? = nil) async {
         do {
             let session = try await SupabaseManager.shared.client.auth.session
             let userId = session.user.id.uuidString
             
-            // Extract name from user metadata (from auth.users table)
-            var firstName: String?
-            var lastName: String?
+            // Extract name from parameters (passed in) or user metadata (from auth.users table)
+            var finalFirstName: String? = firstName
+            var finalLastName: String? = lastName
             
-            // Try to get display_name from userMetadata
-            // userMetadata is [String: AnyJSON], convert to [String: Any] for extraction
-            let userMetadataDict = session.user.userMetadata.reduce(into: [String: Any]()) { result, pair in
-                result[pair.key] = pair.value
-            }
-            if !userMetadataDict.isEmpty {
-                let extracted = extractNameFromMetadata(userMetadata: userMetadataDict)
-                firstName = extracted.0
-                lastName = extracted.1
+            // If not provided as parameters, try to get from userMetadata
+            if finalFirstName == nil && finalLastName == nil {
+                let userMetadataDict = session.user.userMetadata.reduce(into: [String: Any]()) { result, pair in
+                    result[pair.key] = pair.value
+                }
+                if !userMetadataDict.isEmpty {
+                    let extracted = extractNameFromMetadata(userMetadata: userMetadataDict)
+                    finalFirstName = extracted.0
+                    finalLastName = extracted.1
+                }
             }
             
             // Check if record already exists
@@ -154,10 +158,10 @@ class SubscriptionService: ObservableObject {
                 ]
                 
                 // Only set name if we have it
-                if let firstName = firstName, !firstName.isEmpty {
+                if let firstName = finalFirstName, !firstName.isEmpty {
                     insertData["first_name"] = firstName
                 }
-                if let lastName = lastName, !lastName.isEmpty {
+                if let lastName = finalLastName, !lastName.isEmpty {
                     insertData["last_name"] = lastName
                 }
                 
@@ -171,16 +175,16 @@ class SubscriptionService: ObservableObject {
                 // Record exists - ONLY update name fields if they're missing
                 // DO NOT touch subscription status or RevenueCat-related fields!
                 if let existingRecord = existing.first {
-                    let needsUpdate = (existingRecord.firstName == nil || existingRecord.firstName?.isEmpty == true) && firstName != nil ||
-                                      (existingRecord.lastName == nil || existingRecord.lastName?.isEmpty == true) && lastName != nil
+                    let needsUpdate = (existingRecord.firstName == nil || existingRecord.firstName?.isEmpty == true) && finalFirstName != nil ||
+                                      (existingRecord.lastName == nil || existingRecord.lastName?.isEmpty == true) && finalLastName != nil
                     
                     if needsUpdate {
                         var updateData: [String: String?] = [:]
-                        if (existingRecord.firstName == nil || existingRecord.firstName?.isEmpty == true) && firstName != nil {
-                            updateData["first_name"] = firstName
+                        if (existingRecord.firstName == nil || existingRecord.firstName?.isEmpty == true) && finalFirstName != nil {
+                            updateData["first_name"] = finalFirstName
                         }
-                        if (existingRecord.lastName == nil || existingRecord.lastName?.isEmpty == true) && lastName != nil {
-                            updateData["last_name"] = lastName
+                        if (existingRecord.lastName == nil || existingRecord.lastName?.isEmpty == true) && finalLastName != nil {
+                            updateData["last_name"] = finalLastName
                         }
                         
                         if !updateData.isEmpty {

@@ -9,6 +9,7 @@ struct SignUpView: View {
     @State private var lastName = ""
     @State private var message = ""
     @State private var isLoading = false
+    @State private var showingOnboarding = false
     @State private var showingSubscriptionBenefits = false
     @State private var showingEmailVerification = false
     @State private var signupEmail = ""
@@ -146,9 +147,16 @@ struct SignUpView: View {
                 showingSubscriptionBenefits = false
             }
             .onDisappear {
-                // Always dismiss subscription screen when leaving signup view
-                // This prevents it from showing when user returns to app
+                // Always dismiss screens when leaving signup view
+                // This prevents them from showing when user returns to app
+                showingOnboarding = false
                 showingSubscriptionBenefits = false
+            }
+            .sheet(isPresented: $showingOnboarding) {
+                OnboardingView(onContinue: {
+                    showingOnboarding = false
+                    showingSubscriptionBenefits = true
+                })
             }
             .sheet(isPresented: $showingSubscriptionBenefits) {
                 SubscriptionBenefitsView(
@@ -181,9 +189,15 @@ struct SignUpView: View {
         defer { isLoading = false }
         
         do {
+            // Redirect URL is configured in Supabase Dashboard
+            // Authentication > URL Configuration > Redirect URLs
+            // For production: https://thedailydevweb.vercel.app/auth/verify
+            let redirectURL: URL? = nil // Use dashboard setting
+            
             let session = try await SupabaseManager.shared.client.auth.signUp(
                 email: email,
-                password: password
+                password: password,
+                redirectTo: redirectURL
             )
             
             // If sign-up was successful, create user profile
@@ -191,27 +205,34 @@ struct SignUpView: View {
             
             // Check if email is verified
             if user.emailConfirmedAt == nil {
-                // Show verification view instead of subscription benefits
+                // Email not verified - don't create subscription record yet (no session)
+                // Store the names in EmailVerificationManager so they're available after verification
+                // Store names for use after email verification
                 await MainActor.run {
+                    EmailVerificationManager.shared.setPendingNames(
+                        firstName: firstName.isEmpty ? nil : firstName,
+                        lastName: lastName.isEmpty ? nil : lastName
+                    )
                     signupEmail = email
                     showingEmailVerification = true
                 }
             } else {
-                // Create user subscription record in the background
-                Task {
-                    do {
-                        try await createUserSubscription(userId: user.id)
-                    } catch {
-                        print("Failed to create user subscription: \(error)")
-                    }
-                }
+                // Create user subscription record synchronously (not in background)
+                // This ensures display name is available immediately
+                // Use ensureUserSubscriptionRecord with names to handle RLS properly
+                await SubscriptionService.shared.ensureUserSubscriptionRecord(
+                    firstName: firstName.isEmpty ? nil : firstName,
+                    lastName: lastName.isEmpty ? nil : lastName
+                )
+                // Clear display name cache so it refreshes with new data
+                QuestionService.shared.invalidateDisplayNameCache()
                 
                 // Update auth manager
                 await AuthManager.shared.checkSession()
                 
-                // Show subscription benefits screen
+                // Show onboarding screen first, then subscription
                 await MainActor.run {
-                    showingSubscriptionBenefits = true
+                    showingOnboarding = true
                 }
             }
         } catch {
@@ -228,22 +249,23 @@ struct SignUpView: View {
                 // Email is verified, proceed with signup flow
                 let user = session.user
                 
-                // Create user subscription record
-                Task {
-                    do {
-                        try await createUserSubscription(userId: user.id)
-                    } catch {
-                        print("Failed to create user subscription: \(error)")
-                    }
-                }
+                // Create user subscription record synchronously
+                // This ensures display name is available immediately
+                // Use ensureUserSubscriptionRecord with names to handle RLS properly
+                await SubscriptionService.shared.ensureUserSubscriptionRecord(
+                    firstName: firstName.isEmpty ? nil : firstName,
+                    lastName: lastName.isEmpty ? nil : lastName
+                )
+                // Clear display name cache so it refreshes with new data
+                QuestionService.shared.invalidateDisplayNameCache()
                 
                 // Update auth manager
                 await AuthManager.shared.checkSession()
                 
-                // Show subscription benefits screen
+                // Show onboarding screen first, then subscription
                 await MainActor.run {
                     showingEmailVerification = false
-                    showingSubscriptionBenefits = true
+                    showingOnboarding = true
                 }
             } else {
                 // Still not verified
@@ -262,14 +284,22 @@ struct SignUpView: View {
     // MARK: - Create User Subscription Record
     func createUserSubscription(userId: UUID) async throws {
         // Insert into user_subscriptions with name info
+        var insertData: [String: String] = [
+            "user_id": userId.uuidString,
+            "status": "inactive"
+        ]
+        
+        // Only add name fields if they're not empty
+        if !firstName.isEmpty {
+            insertData["first_name"] = firstName
+        }
+        if !lastName.isEmpty {
+            insertData["last_name"] = lastName
+        }
+        
         _ = try await SupabaseManager.shared.client
             .from("user_subscriptions")
-            .insert([
-                "user_id": userId.uuidString,
-                "first_name": firstName.isEmpty ? nil : firstName,
-                "last_name": lastName.isEmpty ? nil : lastName,
-                "status": "inactive"
-            ])
+            .insert(insertData)
             .execute()
     }
     
@@ -286,8 +316,11 @@ struct SignUpView: View {
             await AuthManager.shared.setRevenueCatUserID()
             // Ensure user_subscriptions record exists
             await SubscriptionService.shared.ensureUserSubscriptionRecord()
+            
+            // Check if this is a new user (first time signing in)
+            // For OAuth, we'll show onboarding for all sign-ins (can be optimized later)
             await MainActor.run {
-                isLoggedIn = true
+                showingOnboarding = true
             }
         } catch {
             await MainActor.run {
@@ -309,8 +342,11 @@ struct SignUpView: View {
             await AuthManager.shared.setRevenueCatUserID()
             // Ensure user_subscriptions record exists
             await SubscriptionService.shared.ensureUserSubscriptionRecord()
+            
+            // Check if this is a new user (first time signing in)
+            // For OAuth, we'll show onboarding for all sign-ins (can be optimized later)
             await MainActor.run {
-                isLoggedIn = true
+                showingOnboarding = true
             }
         } catch {
             await MainActor.run {

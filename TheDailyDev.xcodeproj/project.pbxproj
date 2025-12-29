@@ -11,6 +11,7 @@
 		2D768DB42EB00002008AFC8E /* DropZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D768DB32EB00002008AFC8E /* DropZoneView.swift */; };
 		62C471142EAE8888008AFC8E /* FeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62C471132EAE8888008AFC8E /* FeedbackService.swift */; };
 		7D95821D2EA32EAF008AFC8E /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D95821C2EA32EAF008AFC8E /* SignUpView.swift */; };
+		O1N2B3O42ED99945008AFC8E /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = O1N2B3O32ED99945008AFC8E /* OnboardingView.swift */; };
 		7D95825B2EA45859008AFC8E /* MultipleChoiceQuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9582582EA45859008AFC8E /* MultipleChoiceQuestionView.swift */; };
 		7D95825C2EA45859008AFC8E /* Question.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9582592EA45859008AFC8E /* Question.swift */; };
 		7D95825D2EA45859008AFC8E /* QuestionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D95825A2EA45859008AFC8E /* QuestionService.swift */; };
@@ -56,6 +57,7 @@
 		H1I2I3I42ED66645008AFC8E /* FirstQuestionCompleteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = H1I2I3I32ED66645008AFC8E /* FirstQuestionCompleteView.swift */; };
 		I1J2J3J42ED77745008AFC8E /* SubscriptionDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = I1J2J3J32ED77745008AFC8E /* SubscriptionDetailsView.swift */; };
 		P1Q2R3S42ED88845008AFC8E /* PasswordResetManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = P1Q2R3S32ED88845008AFC8E /* PasswordResetManager.swift */; };
+		E1M2A3I42ED99945008AFC8E /* EmailVerificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1M2A3I32ED99945008AFC8E /* EmailVerificationManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +82,7 @@
 		2D768DB32EB00002008AFC8E /* DropZoneView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DropZoneView.swift; sourceTree = "<group>"; };
 		62C471132EAE8888008AFC8E /* FeedbackService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FeedbackService.swift; sourceTree = "<group>"; };
 		7D95821C2EA32EAF008AFC8E /* SignUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignUpView.swift; sourceTree = "<group>"; };
+		O1N2B3O32ED99945008AFC8E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		7D9582582EA45859008AFC8E /* MultipleChoiceQuestionView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MultipleChoiceQuestionView.swift; sourceTree = "<group>"; };
 		7D9582592EA45859008AFC8E /* Question.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Question.swift; sourceTree = "<group>"; };
 		7D95825A2EA45859008AFC8E /* QuestionService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = QuestionService.swift; sourceTree = "<group>"; };
@@ -127,6 +130,7 @@
 		H1I2I3I32ED66645008AFC8E /* FirstQuestionCompleteView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FirstQuestionCompleteView.swift; sourceTree = "<group>"; };
 		I1J2J3J32ED77745008AFC8E /* SubscriptionDetailsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SubscriptionDetailsView.swift; sourceTree = "<group>"; };
 		P1Q2R3S32ED88845008AFC8E /* PasswordResetManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PasswordResetManager.swift; sourceTree = "<group>"; };
+		E1M2A3I32ED99945008AFC8E /* EmailVerificationManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = EmailVerificationManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -188,6 +192,7 @@
 				7D9582682EA86A33008AFC8E /* AdaptiveText.swift */,
 				AA11BB212EC0000000AFC8E /* Theme.swift */,
 				7D95821C2EA32EAF008AFC8E /* SignUpView.swift */,
+				O1N2B3O32ED99945008AFC8E /* OnboardingView.swift */,
 				7D9582582EA45859008AFC8E /* MultipleChoiceQuestionView.swift */,
 				A1B2C3D32EB11111008AFC8E /* OrderingQuestionView.swift */,
 				9D1165582EB00000008AFC8E /* MatchingQuestionView.swift */,
@@ -218,6 +223,7 @@
 				F1G2G3G32ED44445008AFC8E /* ForgotPasswordView.swift */,
 				G1H2H3H32ED55545008AFC8E /* ResetPasswordView.swift */,
 				P1Q2R3S32ED88845008AFC8E /* PasswordResetManager.swift */,
+				E1M2A3I32ED99945008AFC8E /* EmailVerificationManager.swift */,
 				H1I2I3I32ED66645008AFC8E /* FirstQuestionCompleteView.swift */,
 				7DCCAE042E9F30B4003A8156 /* Assets.xcassets */,
 				7DCCAE062E9F30B4003A8156 /* Preview Content */,
@@ -408,11 +414,13 @@
 				7D9582652EA84754008AFC8E /* Config.swift in Sources */,
 				7DCCAE312EA08B08003A8156 /* ProfileView.swift in Sources */,
 				7D95821D2EA32EAF008AFC8E /* SignUpView.swift in Sources */,
+				O1N2B3O42ED99945008AFC8E /* OnboardingView.swift in Sources */,
 				7DCCAE362EA1D08A003A8156 /* SupabaseManager.swift in Sources */,
 				E1F2E3E42ED33345008AFC8E /* EmailVerificationView.swift in Sources */,
 				F1G2G3G42ED44445008AFC8E /* ForgotPasswordView.swift in Sources */,
 				G1H2H3H42ED55545008AFC8E /* ResetPasswordView.swift in Sources */,
 				P1Q2R3S42ED88845008AFC8E /* PasswordResetManager.swift in Sources */,
+				E1M2A3I42ED99945008AFC8E /* EmailVerificationManager.swift in Sources */,
 				H1I2I3I42ED66645008AFC8E /* FirstQuestionCompleteView.swift in Sources */,
 				7D9582692EA86A33008AFC8E /* AdaptiveText.swift in Sources */,
 				7D95825D2EA45859008AFC8E /* QuestionService.swift in Sources */,

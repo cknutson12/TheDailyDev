@@ -394,6 +394,10 @@ struct HomeView: View {
                 print("✅ Subscription success notification received - UI refreshed")
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowSubscriptionAfterOnboarding"))) { _ in
+            // Show subscription screen after onboarding completes
+            showingSubscriptionBenefits = true
+        }
         .onDisappear {
             // Always dismiss subscription screen when leaving home view
             // This prevents it from showing when user returns to app

@@ -53,6 +53,13 @@ class QuestionService: ObservableObject {
         print("🔄 Question cache invalidated - will fetch fresh question")
     }
     
+    /// Invalidate display name cache - call when user name is updated
+    func invalidateDisplayNameCache() {
+        cachedDisplayName = nil
+        displayNameFetchTime = nil
+        print("🔄 Display name cache invalidated - will fetch fresh name")
+    }
+    
     /// Clear ALL caches - call on sign out to ensure no user data persists
     func clearAllCaches() {
         // Clear progress history cache

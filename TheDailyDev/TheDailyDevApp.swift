@@ -12,6 +12,7 @@ import RevenueCat
 struct TheDailyDevApp: App {
     @StateObject private var subscriptionService = SubscriptionService.shared
     @StateObject private var passwordResetManager = PasswordResetManager.shared
+    @StateObject private var emailVerificationManager = EmailVerificationManager.shared
     
     init() {
         // Initialize RevenueCat SDK
@@ -42,6 +43,16 @@ struct TheDailyDevApp: App {
                     }
                 } message: {
                     Text(passwordResetManager.errorMessage ?? "An error occurred with the password reset link.")
+                }
+                .sheet(isPresented: $emailVerificationManager.showingOnboarding) {
+                    OnboardingView(onContinue: {
+                        emailVerificationManager.dismiss()
+                        // After onboarding, show subscription screen
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            // Post notification to show subscription screen
+                            NotificationCenter.default.post(name: NSNotification.Name("ShowSubscriptionAfterOnboarding"), object: nil)
+                        }
+                    })
                 }
         }
     }
@@ -112,6 +123,29 @@ struct TheDailyDevApp: App {
                 
                 // Refresh auth state to update UI (user is already signed in, just email is now verified)
                 await AuthManager.shared.checkSession()
+                
+                // Set RevenueCat user ID after verification
+                await AuthManager.shared.setRevenueCatUserID()
+                
+                // Create subscription record with stored names (now we have a session)
+                let firstName = emailVerificationManager.pendingFirstName
+                let lastName = emailVerificationManager.pendingLastName
+                
+                await SubscriptionService.shared.ensureUserSubscriptionRecord(
+                    firstName: firstName,
+                    lastName: lastName
+                )
+                QuestionService.shared.invalidateDisplayNameCache()
+                
+                // Clear pending names
+                emailVerificationManager.clearPendingNames()
+                
+                // Check if this is a new user who should see onboarding
+                // If user just verified email after sign-up, show onboarding
+                await MainActor.run {
+                    emailVerificationManager.showOnboarding()
+                }
+                
                 print("✅ Auth state refreshed after email verification")
             } catch {
                 print("❌ Email verification code validation failed: \(error)")
