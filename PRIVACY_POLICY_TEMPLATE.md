@@ -11,7 +11,7 @@ The Daily Dev ("we," "our," or "us") is committed to protecting your privacy. Th
 ### Information You Provide
 
 - **Account Information**: When you create an account, we collect your email address and password. If you sign in with Google or GitHub, we collect your name and email address from those services.
-- **Payment Information**: When you subscribe, payment information is processed by Stripe. We do not store your full payment card details on our servers.
+- **Payment Information**: When you subscribe, payment information is processed by Apple (for App Store purchases) and RevenueCat (for subscription management). We do not store your full payment card details on our servers.
 - **Feedback**: If you submit feedback through the app, we collect the content of your feedback and your email address.
 
 ### Information Automatically Collected
@@ -49,10 +49,15 @@ We use the following third-party services that may collect information:
 - **Data Collected**: Account information, usage data, progress data
 - **Privacy Policy**: https://supabase.com/privacy
 
-### Stripe
-- **Purpose**: Payment processing for subscriptions
-- **Data Collected**: Payment information (processed securely by Stripe)
-- **Privacy Policy**: https://stripe.com/privacy
+### RevenueCat
+- **Purpose**: Subscription management and payment processing
+- **Data Collected**: Subscription status, purchase history, device identifiers
+- **Privacy Policy**: https://www.revenuecat.com/privacy
+
+### Apple App Store
+- **Purpose**: Payment processing for in-app purchases
+- **Data Collected**: Payment information (processed securely by Apple)
+- **Privacy Policy**: https://www.apple.com/privacy/
 
 ### Google OAuth
 - **Purpose**: Authentication option
@@ -73,7 +78,7 @@ We use the following third-party services that may collect information:
 
 - Your data is stored securely using Supabase, which uses industry-standard security measures
 - We use encryption to protect your data in transit and at rest
-- Payment information is processed securely by Stripe and is not stored on our servers
+- Payment information is processed securely by Apple (App Store) and RevenueCat, and is not stored on our servers
 - We implement appropriate technical and organizational measures to protect your personal information
 
 ## Data Retention

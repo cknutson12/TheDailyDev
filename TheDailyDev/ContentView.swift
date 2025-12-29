@@ -98,7 +98,7 @@ struct ContentView: View {
                         Text(showSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
                     }
                     .buttonStyle(.plain)
-                    .foregroundColor(.blue)
+                    .foregroundColor(Theme.Colors.accentGreen)
                 }
             }
         }

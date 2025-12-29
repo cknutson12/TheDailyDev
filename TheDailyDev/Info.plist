@@ -26,6 +26,6 @@
 		</dict>
 	</array>
 	<key>NSPrivacyPolicyURL</key>
-	<string>https://yourdomain.com/privacy-policy</string>
+	<string>https://thedailydevweb.vercel.app/privacy-policy</string>
 </dict>
 </plist>

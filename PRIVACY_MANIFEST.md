@@ -25,10 +25,15 @@ Your app may use these APIs that require declaration:
 - **Data Collection:** User authentication data, app usage data
 - **Purpose:** Backend services, authentication, database
 
-### Stripe SDK (via Edge Functions)
-- **Privacy Policy:** https://stripe.com/privacy
-- **Data Collection:** Payment information (processed server-side)
-- **Purpose:** Payment processing
+### RevenueCat SDK
+- **Privacy Policy:** https://www.revenuecat.com/privacy
+- **Data Collection:** Subscription status, purchase history, device identifiers
+- **Purpose:** Subscription management and payment processing
+
+### Apple StoreKit
+- **Privacy Policy:** https://www.apple.com/privacy/
+- **Data Collection:** Payment information (processed by Apple)
+- **Purpose:** In-app purchase processing
 
 ## Creating the Privacy Manifest
 

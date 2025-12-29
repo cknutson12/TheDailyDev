@@ -46,16 +46,11 @@ struct Config {
     static let revenueCatYearlyProductID = "yearly"
     
     // MARK: - Legal URLs
-    // TODO: Replace with your actual URLs once you have them hosted
     static var privacyPolicyURL: String {
-        // Replace with your actual privacy policy URL
-        // Example: "https://yourdomain.com/privacy-policy"
-        return "https://yourdomain.com/privacy-policy" // PLACEHOLDER - UPDATE THIS
+        return "https://thedailydevweb.vercel.app/privacy-policy"
     }
     
     static var termsOfServiceURL: String {
-        // Replace with your actual terms of service URL, or return empty string if not available
-        // Example: "https://yourdomain.com/terms-of-service"
-        return "" // PLACEHOLDER - UPDATE THIS or leave empty if not available
+        return "https://thedailydevweb.vercel.app/terms-of-service"
     }
 }
