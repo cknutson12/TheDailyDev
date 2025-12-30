@@ -16,12 +16,14 @@ struct TheDailyDevApp: App {
     
     init() {
         // Initialize RevenueCat SDK
-        Purchases.logLevel = .debug // Use .info or .warn in production
+        #if DEBUG
+        Purchases.logLevel = .debug
+        #else
+        Purchases.logLevel = .warn // Only warnings and errors in production
+        #endif
         Purchases.configure(withAPIKey: Config.revenueCatAPIKey)
         
-        // Set user ID after authentication (will be called from AuthManager)
-        // For now, anonymous ID will be used until user signs in
-        print("✅ RevenueCat SDK initialized with API key")
+        DebugLogger.log("✅ RevenueCat SDK initialized with API key")
     }
     
     var body: some Scene {
@@ -59,27 +61,27 @@ struct TheDailyDevApp: App {
     
     // MARK: - Handle Deep Links
     private func handleDeepLink(url: URL) async {
-        print("🔗 Received deep link: \(url)")
-        print("   - scheme: \(url.scheme ?? "nil")")
-        print("   - host: \(url.host ?? "nil")")
-        print("   - path: \(url.path)")
+        DebugLogger.log("🔗 Received deep link: \(url)")
+        DebugLogger.log("   - scheme: \(url.scheme ?? "nil")")
+        DebugLogger.log("   - host: \(url.host ?? "nil")")
+        DebugLogger.log("   - path: \(url.path)")
         
         // Handle Supabase OAuth redirects
         if url.scheme == "com.supabase.thedailydev" && url.host == "oauth-callback" {
-            print("🔐 OAuth callback received: \(url.absoluteString)")
+            DebugLogger.log("🔐 OAuth callback received: \(url.absoluteString)")
             await AuthManager.shared.handleOAuthCallback(url: url)
             return
         }
         
         // Handle email confirmation
         if url.scheme == "thedailydev" && url.host == "email-confirm" {
-            print("📧 Email confirmation received: \(url.absoluteString)")
+            DebugLogger.log("📧 Email confirmation received: \(url.absoluteString)")
             
             // Extract code from query parameters
             // Supabase redirects with a 'code' parameter after verification
             guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
                   let queryItems = components.queryItems else {
-                print("❌ No query parameters found in email confirmation URL")
+                DebugLogger.error("No query parameters found in email confirmation URL")
                 return
             }
             
@@ -89,26 +91,28 @@ struct TheDailyDevApp: App {
             // First try 'code' parameter
             if let code = queryItems.first(where: { $0.name == "code" })?.value {
                 authCode = code
-                print("📋 Extracted code: \(code.prefix(20))...")
+                DebugLogger.log("📋 Extracted code: \(code.prefix(20))...")
             } else if let token = queryItems.first(where: { $0.name == "token" })?.value {
                 // If token is a UUID (not a PKCE token), treat it as a code
                 // PKCE tokens start with "pkce_", UUIDs are 36 chars with dashes
-                print("📋 Found token parameter: \(token.prefix(20))... (length: \(token.count))")
+                DebugLogger.log("📋 Found token parameter: \(token.prefix(20))... (length: \(token.count))")
                 if !token.hasPrefix("pkce_") && token.count == 36 && token.contains("-") {
                     authCode = token
-                    print("✅ Token is a UUID - treating as code")
+                    DebugLogger.log("✅ Token is a UUID - treating as code")
                 } else {
-                    print("⚠️ Token doesn't match UUID format - ignoring")
+                    DebugLogger.log("⚠️ Token doesn't match UUID format - ignoring")
                 }
             } else {
-                print("⚠️ No 'code' or 'token' parameter found in query items")
+                DebugLogger.log("⚠️ No 'code' or 'token' parameter found in query items")
+                #if DEBUG
                 for item in queryItems {
-                    print("   - \(item.name): \(item.value ?? "nil")")
+                    DebugLogger.log("   - \(item.name): \(item.value ?? "nil")")
                 }
+                #endif
             }
             
             guard let code = authCode else {
-                print("❌ No valid code found in email confirmation URL")
+                DebugLogger.error("No valid code found in email confirmation URL")
                 return
             }
             
@@ -116,7 +120,7 @@ struct TheDailyDevApp: App {
             // This verifies the email - user is already signed in, just verifying email
             do {
                 _ = try await SupabaseManager.shared.client.auth.exchangeCodeForSession(authCode: code)
-                print("✅ Email verification code validated - email verified")
+                DebugLogger.log("✅ Email verification code validated - email verified")
                 
                 // Give the UI a moment to update if the app was in the background
                 try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
@@ -146,9 +150,9 @@ struct TheDailyDevApp: App {
                     emailVerificationManager.showOnboarding()
                 }
                 
-                print("✅ Auth state refreshed after email verification")
+                DebugLogger.log("✅ Auth state refreshed after email verification")
             } catch {
-                print("❌ Email verification code validation failed: \(error)")
+                DebugLogger.error("Email verification code validation failed: \(error.localizedDescription)")
                 // Still try to refresh auth state in case verification worked
                 await AuthManager.shared.checkSession()
             }
@@ -157,13 +161,13 @@ struct TheDailyDevApp: App {
         
         // Handle password reset
         if url.scheme == "thedailydev" && url.host == "password-reset" {
-            print("🔑 Password reset received: \(url.absoluteString)")
+            DebugLogger.log("🔑 Password reset received: \(url.absoluteString)")
             
             // Extract code from query parameters
             // Supabase redirects with a 'code' parameter, but HTML might pass it as 'token'
             guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
                   let queryItems = components.queryItems else {
-                print("❌ No query parameters found in password reset URL")
+                DebugLogger.error("No query parameters found in password reset URL")
                 await MainActor.run {
                     passwordResetManager.setError(NSError(
                         domain: "PasswordReset",
@@ -180,26 +184,28 @@ struct TheDailyDevApp: App {
             // First try 'code' parameter
             if let code = queryItems.first(where: { $0.name == "code" })?.value {
                 authCode = code
-                print("📋 Extracted code: \(code.prefix(20))...")
+                DebugLogger.log("📋 Extracted code: \(code.prefix(20))...")
             } else if let token = queryItems.first(where: { $0.name == "token" })?.value {
                 // If token is a UUID (not a PKCE token), treat it as a code
                 // PKCE tokens start with "pkce_", UUIDs are 36 chars with dashes
-                print("📋 Found token parameter: \(token.prefix(20))... (length: \(token.count))")
+                DebugLogger.log("📋 Found token parameter: \(token.prefix(20))... (length: \(token.count))")
                 if !token.hasPrefix("pkce_") && token.count == 36 && token.contains("-") {
                     authCode = token
-                    print("✅ Token is a UUID - treating as code")
+                    DebugLogger.log("✅ Token is a UUID - treating as code")
                 } else {
-                    print("⚠️ Token doesn't match UUID format - ignoring")
+                    DebugLogger.log("⚠️ Token doesn't match UUID format - ignoring")
                 }
             } else {
-                print("⚠️ No 'code' or 'token' parameter found in query items")
+                DebugLogger.log("⚠️ No 'code' or 'token' parameter found in query items")
+                #if DEBUG
                 for item in queryItems {
-                    print("   - \(item.name): \(item.value ?? "nil")")
+                    DebugLogger.log("   - \(item.name): \(item.value ?? "nil")")
                 }
+                #endif
             }
             
             guard let code = authCode else {
-                print("❌ No valid code found in password reset URL")
+                DebugLogger.error("No valid code found in password reset URL")
                 await MainActor.run {
                     passwordResetManager.setError(NSError(
                         domain: "PasswordReset",
@@ -214,7 +220,7 @@ struct TheDailyDevApp: App {
             // This validates the code and establishes a session for password reset
             do {
                 _ = try await SupabaseManager.shared.client.auth.exchangeCodeForSession(authCode: code)
-                print("✅ Password reset code validated - session established")
+                DebugLogger.log("✅ Password reset code validated - session established")
                 
                 // Post notification to dismiss any forgot password views
                 await MainActor.run {
@@ -227,13 +233,13 @@ struct TheDailyDevApp: App {
                 await MainActor.run {
                     // Set the reset code which will trigger showingResetView = true
                     passwordResetManager.setResetCode(code)
-                    print("📱 Password reset view should now be visible")
+                    DebugLogger.log("📱 Password reset view should now be visible")
                 }
                 
                 // Give the UI a moment to update if the app was in the background
                 try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
             } catch {
-                print("❌ Password reset code validation failed: \(error)")
+                DebugLogger.error("Password reset code validation failed: \(error.localizedDescription)")
                 await MainActor.run {
                     passwordResetManager.setError(error)
                 }
@@ -246,16 +252,16 @@ struct TheDailyDevApp: App {
         
         // Handle subscription return
         guard url.scheme == "thedailydev" else {
-            print("❌ Invalid scheme: \(url.scheme ?? "nil")")
+            DebugLogger.error("Invalid scheme: \(url.scheme ?? "nil")")
             return
         }
         
         let host = url.host ?? ""
-        print("📋 Host: \(host)")
+        DebugLogger.log("📋 Host: \(host)")
         
         switch host {
         case "subscription-success":
-            print("✅ Subscription successful - refreshing subscription status...")
+            DebugLogger.log("✅ Subscription successful - refreshing subscription status...")
             
             // Invalidate caches to force fresh data
             subscriptionService.invalidateCache()
@@ -267,18 +273,18 @@ struct TheDailyDevApp: App {
             
             // Force refresh - user just purchased!
             let subscription = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
-            print("📊 Fetched subscription: \(subscription?.status ?? "none")")
+            DebugLogger.log("📊 Fetched subscription: \(subscription?.status ?? "none")")
             
             if subscription != nil {
-                print("✅ Active subscription found!")
+                DebugLogger.log("✅ Active subscription found!")
                 // Cache already invalidated, so next call will fetch fresh
             } else {
-                print("⚠️ No subscription found - webhook may still be processing")
+                DebugLogger.log("⚠️ No subscription found - webhook may still be processing")
                 // Retry after another 3 seconds
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 let retrySubscription = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
                 if retrySubscription != nil {
-                    print("✅ Subscription found on retry!")
+                    DebugLogger.log("✅ Subscription found on retry!")
                     // Refresh question access status
                     _ = await QuestionService.shared.hasAnsweredToday()
                 }
@@ -289,14 +295,14 @@ struct TheDailyDevApp: App {
                 NotificationCenter.default.post(name: NSNotification.Name("SubscriptionSuccess"), object: nil)
             }
         case "subscription-updated":
-            print("💳 Subscription updated via billing portal - refreshing...")
+            DebugLogger.log("💳 Subscription updated via billing portal - refreshing...")
             // Force refresh - user just modified subscription!
             let subscription = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
-            print("📊 Updated subscription: \(subscription?.status ?? "none")")
+            DebugLogger.log("📊 Updated subscription: \(subscription?.status ?? "none")")
         case "subscription-cancel":
-            print("❌ Subscription canceled")
+            DebugLogger.log("❌ Subscription canceled")
         default:
-            print("⚠️ Unknown host: \(host)")
+            DebugLogger.log("⚠️ Unknown host: \(host)")
             break
         }
     }
