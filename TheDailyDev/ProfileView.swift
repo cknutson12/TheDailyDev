@@ -18,9 +18,11 @@ struct ProfileView: View {
     @State private var userName: String = ""
     @State private var categoryPerformances: [CategoryPerformance] = []
     @State private var isLoadingCategories = false
-    @State private var showingSubscriptionSettings = false
     @State private var showingSubscriptionBenefits = false
     @State private var isLoadingSubscription = true
+    @StateObject private var tourManager = OnboardingTourManager.shared
+    @State private var viewFrames: [String: CGRect] = [:]
+    @State private var tourTargetFrame: CGRect? = nil
 
     var body: some View {
         ZStack {
@@ -82,6 +84,9 @@ struct ProfileView: View {
                                     progressHistory: progressHistory,
                                     allDailyChallenges: allDailyChallenges
                                 )
+                                .tourHighlight(isHighlighted: tourManager.shouldHighlight(identifier: "QuestionHistoryGrid"))
+                                .accessibilityIdentifier("QuestionHistoryGrid")
+                                .trackFrame(identifier: "QuestionHistoryGrid")
                                 .padding(.horizontal)
                             }
                             
@@ -94,41 +99,63 @@ struct ProfileView: View {
                                 .padding(.horizontal)
                             } else {
                                 CategoryPerformanceView(categoryPerformances: categoryPerformances)
+                                    .tourHighlight(isHighlighted: tourManager.shouldHighlight(identifier: "CategoryPerformanceView"))
+                                    .accessibilityIdentifier("CategoryPerformanceView")
+                                    .trackFrame(identifier: "CategoryPerformanceView")
                                     .padding(.horizontal)
                             }
                         } else {
-                            // Show upgrade prompt for non-subscribers
-                            VStack(spacing: 16) {
-                                Image(systemName: "crown.fill")
-                                    .font(.system(size: 50))
-                                    .foregroundColor(Color.theme.accentGreen)
+                            // Show analytics views (blank for non-subscribers) or upgrade prompt
+                            if tourManager.isTourActive {
+                                // During tour, show the views even if empty so users can see them
+                                ContributionsTracker(
+                                    progressHistory: [],
+                                    allDailyChallenges: []
+                                )
+                                .tourHighlight(isHighlighted: tourManager.shouldHighlight(identifier: "QuestionHistoryGrid"))
+                                .accessibilityIdentifier("QuestionHistoryGrid")
+                                .trackFrame(identifier: "QuestionHistoryGrid")
+                                .padding(.horizontal)
                                 
-                                Text("Upgrade to See Question Stats")
-                                    .font(.title2)
-                                    .bold()
-                                    .foregroundColor(.white)
-                                
-                                Text("Unlock detailed analytics, question history, and performance tracking with a subscription")
-                                    .font(.body)
-                                    .foregroundColor(Color.theme.textSecondary)
-                                    .multilineTextAlignment(.center)
-                                
-                                Button(action: {
-                                    showingSubscriptionBenefits = true
-                                }) {
-                                    Text("See Benefits")
+                                CategoryPerformanceView(categoryPerformances: [])
+                                    .tourHighlight(isHighlighted: tourManager.shouldHighlight(identifier: "CategoryPerformanceView"))
+                                    .accessibilityIdentifier("CategoryPerformanceView")
+                                    .trackFrame(identifier: "CategoryPerformanceView")
+                                    .padding(.horizontal)
+                            } else {
+                                // Show upgrade prompt for non-subscribers (when not in tour)
+                                VStack(spacing: 16) {
+                                    Image(systemName: "crown.fill")
+                                        .font(.system(size: 50))
+                                        .foregroundColor(Color.theme.accentGreen)
+                                    
+                                    Text("Upgrade to See Question Stats")
+                                        .font(.title2)
                                         .bold()
+                                        .foregroundColor(.white)
+                                    
+                                    Text("Unlock detailed analytics, question history, and performance tracking with a subscription")
+                                        .font(.body)
+                                        .foregroundColor(Color.theme.textSecondary)
+                                        .multilineTextAlignment(.center)
+                                    
+                                    Button(action: {
+                                        showingSubscriptionBenefits = true
+                                    }) {
+                                        Text("See Benefits")
+                                            .bold()
+                                    }
+                                    .buttonStyle(PrimaryButtonStyle())
                                 }
-                                .buttonStyle(PrimaryButtonStyle())
+                                .padding()
+                                .background(Theme.Colors.surface)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
+                                        .stroke(Theme.Colors.border, lineWidth: 1)
+                                )
+                                .cornerRadius(Theme.Metrics.cornerRadius)
+                                .padding(.horizontal)
                             }
-                            .padding()
-                            .background(Theme.Colors.surface)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
-                                    .stroke(Theme.Colors.border, lineWidth: 1)
-                            )
-                            .cornerRadius(Theme.Metrics.cornerRadius)
-                            .padding(.horizontal)
                         }
                     }
                     .padding(.bottom, 16)
@@ -141,32 +168,37 @@ struct ProfileView: View {
         }
         .preferredColorScheme(.dark)
         .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    showingSubscriptionSettings = true
-                }) {
-                    Image(systemName: "gearshape.fill")
-                        .font(.title3)
-                        .foregroundColor(.white)
-                }
-                .accessibilityIdentifier("SettingsButton")
+        .overlay {
+            // Tour overlay (tooltip only, no black background)
+            if tourManager.isTourActive {
+                TourOverlayView(
+                    tourManager: tourManager,
+                    onDismiss: {
+                        // Tour will handle its own dismissal
+                    }
+                )
             }
         }
+        .onAppear {
+            AnalyticsService.shared.trackScreen("profile")
+            
+            // Log tour state for debugging
+            DebugLogger.log("📊 ProfileView appeared")
+            DebugLogger.log("   Tour active: \(tourManager.isTourActive)")
+            DebugLogger.log("   Current step index: \(tourManager.currentStepIndex)")
+            
+            // If tour is active, log the current step
+            if tourManager.isTourActive, let step = tourManager.currentStep {
+                DebugLogger.log("   Current step: \(step.id) - \(step.title)")
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SubscriptionSuccess"))) { _ in
             // Dismiss subscription benefits view when subscription succeeds
             showingSubscriptionBenefits = false
         }
         .sheet(isPresented: $showingSubscriptionBenefits) {
             SubscriptionBenefitsView()
-        }
-        .sheet(isPresented: $showingSubscriptionSettings) {
-            if let subscription = subscriptionService.currentSubscription {
-                SubscriptionSettingsView(subscription: .constant(subscription), isLoggedIn: $isLoggedIn)
-            } else {
-                SubscriptionSettingsView(subscription: .constant(nil), isLoggedIn: $isLoggedIn)
-            }
         }
         .onAppear {
             Task {
@@ -195,10 +227,21 @@ struct ProfileView: View {
             self.userName = displayName
         }
         
-        // Load progress history and category performance (only for subscribers)
+        // Load progress history and category performance
+        // Show empty/blank views for non-subscribers during tour so they can see the UI
+        // For subscribers, load actual data
         if subscriptionService.currentSubscription?.isActive == true {
             await loadProgressHistory()
             await loadCategoryPerformance()
+        } else if tourManager.isTourActive {
+            // During tour, show empty data so users can see the UI structure
+            await MainActor.run {
+                self.progressHistory = []
+                self.allDailyChallenges = []
+                self.categoryPerformances = []
+                self.isLoadingHistory = false
+                self.isLoadingCategories = false
+            }
         }
     }
     

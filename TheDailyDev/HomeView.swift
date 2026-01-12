@@ -19,7 +19,11 @@ struct HomeView: View {
     @State private var isLoadingInitialData = true
     @State private var canAccessQuestions = false
     @State private var hasAnsweredBefore = false
-    @State private var showingFirstQuestionComplete = false
+    @State private var showingSubscriptionSettings = false
+    @StateObject private var tourManager = OnboardingTourManager.shared
+    @State private var viewFrames: [String: CGRect] = [:]
+    @State private var tourTargetFrame: CGRect? = nil
+    @State private var navigateToProfile = false
     
     // Splash messages (Minecraft-style)
     private let splashMessages = [
@@ -90,6 +94,69 @@ struct HomeView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .navigationTitle("")
+        .toolbar {
+            // Settings Button - Top Left
+            ToolbarItem(placement: .navigationBarLeading) {
+                let isHighlighted = tourManager.shouldHighlight(identifier: "SettingsButton")
+                Button(action: {
+                    DebugLogger.log("⚙️ Settings button tapped")
+                    showingSubscriptionSettings = true
+                }) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.title3)
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(isHighlighted ? Theme.Colors.accentGreen.opacity(0.2) : Color.clear)
+                        )
+                }
+                .accessibilityIdentifier("SettingsButton")
+                .trackFrame(identifier: "SettingsButton")
+                .tourHighlight(isHighlighted: isHighlighted)
+                .allowsHitTesting(true) // Ensure button is clickable
+            }
+            
+            // Analytics/History Button - Top Right
+            ToolbarItem(placement: .navigationBarTrailing) {
+                let isHighlighted = tourManager.shouldHighlight(identifier: "AnalyticsButton")
+                
+                NavigationLink(
+                    destination: ProfileView(isLoggedIn: $isLoggedIn),
+                    isActive: $navigateToProfile
+                ) {
+                    Image(systemName: "chart.bar.fill")
+                        .font(.title2)
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(isHighlighted ? Theme.Colors.accentGreen.opacity(0.2) : Color.clear)
+                        )
+                }
+                .accessibilityIdentifier("AnalyticsButton")
+                .trackFrame(identifier: "AnalyticsButton")
+                .tourHighlight(isHighlighted: isHighlighted)
+                .allowsHitTesting(true) // Ensure button is clickable
+            }
+        }
+        .overlay {
+            // Tour overlay (tooltip only, no black background)
+            // Only show when tour is active - this prevents blocking after completion
+            if tourManager.isTourActive {
+                TourOverlayView(
+                    tourManager: tourManager,
+                    onDismiss: {
+                        // Tour will handle its own dismissal
+                    }
+                )
+            } else {
+                // Explicitly show nothing when tour is not active to prevent blocking
+                Color.clear
+                    .allowsHitTesting(false)
+            }
+        }
         .task {
             // Force refresh subscription status immediately on view load
             _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
@@ -103,6 +170,25 @@ struct HomeView: View {
             }
         }
         .onAppear {
+            // Log tour state for debugging
+            DebugLogger.log("🏠 HomeView appeared")
+            DebugLogger.log("   Tour active: \(tourManager.isTourActive)")
+            DebugLogger.log("   Tour completed: \(tourManager.hasCompletedTour())")
+            DebugLogger.log("   Current step index: \(tourManager.currentStepIndex)")
+            
+            // If tour is active, log the current step
+            if tourManager.isTourActive, let step = tourManager.currentStep {
+                DebugLogger.log("   Current step: \(step.id) - \(step.title)")
+            }
+            
+            // DO NOT auto-start tour on HomeView appear
+            // Tour should only be started explicitly during onboarding (after sign-up/email verification)
+            // This prevents the tour from appearing every time the user returns to HomeView
+            if !tourManager.isTourActive && !tourManager.hasCompletedTour() {
+                DebugLogger.log("ℹ️ Tour not active and not completed, but not auto-starting")
+                DebugLogger.log("   Tour should be started explicitly during onboarding flow")
+            }
+            
             // Refresh subscription status when view appears (e.g., returning from checkout)
             // Force refresh to ensure we have latest subscription status
             Task {
@@ -116,6 +202,98 @@ struct HomeView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingQuestion) {
+            QuestionView(
+                isPresented: $showingQuestion,
+                hasAnsweredToday: $hasAnsweredToday
+            )
+        }
+        .onChange(of: showingQuestion) { oldValue, newValue in
+            // When question sheet is dismissed, refresh answered status
+            if oldValue && !newValue {
+                Task {
+                    // Check if they actually answered (not just dismissed)
+                    let answered = await QuestionService.shared.hasAnsweredToday()
+                    let hasAnswered = await questionService.hasAnsweredAnyQuestion()
+                    let wasFirstQuestion = !hasAnsweredBefore && hasAnswered
+                    
+                    await MainActor.run {
+                        hasAnsweredToday = answered
+                        hasAnsweredBefore = hasAnswered
+                        
+                        // If they just completed their first question AND don't have active subscription, show paywall
+                        if wasFirstQuestion && subscriptionService.currentSubscription?.isActive != true {
+                            // Small delay to ensure smooth transition
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                showingSubscriptionBenefits = true
+                            }
+                        }
+                    }
+                    
+                    // If they answered, invalidate caches
+                    if answered {
+                        subscriptionService.invalidateCache() // For trial status
+                        questionService.invalidateProgressCache() // For stats refresh
+                    }
+                    
+                    // Refresh access status (this will use fresh data if cache was invalidated)
+                    let canAccess = await subscriptionService.canAccessQuestions()
+                    await MainActor.run {
+                        canAccessQuestions = canAccess
+                    }
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SubscriptionSuccess"))) { _ in
+            // Dismiss subscription benefits view when subscription succeeds
+            showingSubscriptionBenefits = false
+            // Force refresh subscription status and UI
+            Task {
+                _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
+                let canAccess = await subscriptionService.canAccessQuestions()
+                let answered = await QuestionService.shared.hasAnsweredToday()
+                await MainActor.run {
+                    self.canAccessQuestions = canAccess
+                    self.hasAnsweredToday = answered
+                }
+                print("✅ Subscription success notification received - UI refreshed")
+            }
+        }
+        .onDisappear {
+            // Always dismiss subscription screen when leaving home view
+            // This prevents it from showing when user returns to app
+            showingSubscriptionBenefits = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TourNavigateToProfile"))) { _ in
+            // Tour requested navigation to ProfileView
+            DebugLogger.log("📍 Tour navigation notification received - navigating to ProfileView")
+            navigateToProfile = true
+        }
+        .onChange(of: tourManager.shouldNavigateToProfile) { oldValue, newValue in
+            if newValue {
+                DebugLogger.log("📍 shouldNavigateToProfile changed to true - triggering navigation")
+                navigateToProfile = true
+            } else if !newValue && navigateToProfile {
+                // Reset navigation state when tour manager says we shouldn't navigate
+                navigateToProfile = false
+            }
+        }
+        .onChange(of: navigateToProfile) { oldValue, newValue in
+            if !newValue && oldValue {
+                // Navigation was dismissed - reset the tour manager flag
+                tourManager.shouldNavigateToProfile = false
+            }
+        }
+        .sheet(isPresented: $showingSubscriptionBenefits) {
+            SubscriptionBenefitsView()
+        }
+        .sheet(isPresented: $showingSubscriptionSettings) {
+            if let subscription = subscriptionService.currentSubscription {
+                SubscriptionSettingsView(subscription: .constant(subscription), isLoggedIn: $isLoggedIn)
+            } else {
+                SubscriptionSettingsView(subscription: .constant(nil), isLoggedIn: $isLoggedIn)
+            }
+        }
     }
     
     var mainContent: some View {
@@ -123,9 +301,21 @@ struct HomeView: View {
             VStack(spacing: 30) {
                 Spacer()
                     .frame(height: 20)
-            
-            // Welcome Section
-            VStack(spacing: 16) {
+                
+                welcomeSection
+                Spacer()
+                mainActionButtonSection
+                Spacer()
+                    .frame(height: 20)
+            }
+        }
+    }
+    
+    // MARK: - View Components
+    
+    @ViewBuilder
+    private var welcomeSection: some View {
+        VStack(spacing: 16) {
                 Image("AppLogo")
                     .resizable()
                     .scaledToFit()
@@ -175,19 +365,19 @@ struct HomeView: View {
                     }
                 }
                 
-                Text(dailySplashMessage)
-                    .font(.body)
-                    .italic()
-                    .foregroundColor(Color.theme.accentGreen.opacity(0.8))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-            }
-            
-            Spacer()
-            
-            // Main Action Button
-            VStack(spacing: 20) {
-                if hasAnsweredToday {
+            Text(dailySplashMessage)
+                .font(.body)
+                .italic()
+                .foregroundColor(Color.theme.accentGreen.opacity(0.8))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+        }
+    }
+    
+    @ViewBuilder
+    private var mainActionButtonSection: some View {
+        VStack(spacing: 20) {
+            if hasAnsweredToday {
                     VStack(spacing: 16) {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 40))
@@ -215,7 +405,7 @@ struct HomeView: View {
                                 Button(action: {
                                     showingSubscriptionBenefits = true
                                 }) {
-                                    Text("Start 7-Day Free Trial")
+                                    Text("Subscribe")
                                         .font(.headline)
                                         .foregroundColor(.black)
                                         .padding(.vertical, 12)
@@ -255,6 +445,9 @@ struct HomeView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle())
                     .padding(.horizontal)
+                    .accessibilityIdentifier("DailyQuestionButton")
+                    .tourHighlight(isHighlighted: tourManager.shouldHighlight(identifier: "DailyQuestionButton"), verticalPadding: 0) // Border matches full button
+                    .trackFrame(identifier: "DailyQuestionButton")
                     
                     // Show Friday or first question message if applicable
                     if !hasAnsweredBefore && subscriptionService.currentSubscription?.isActive != true {
@@ -270,43 +463,22 @@ struct HomeView: View {
                     }
                     // Don't show trial status on home screen - keep it clean
                 } else {
-                    // User needs subscription - show locked state
+                    // User needs subscription - show message to answer first question
                     VStack(spacing: 16) {
-                        Image(systemName: "crown.fill")
+                        Image(systemName: "play.circle.fill")
                             .font(.system(size: 50))
                             .foregroundColor(Color.theme.accentGreen)
                         
-                        Text("Start Your Free Trial")
+                        Text("Answer Your First Question")
                             .font(.title2)
                             .bold()
                             .foregroundColor(.white)
                         
-                        Text("Start your free trial today")
+                        Text("Your first question is free! Answer it to unlock daily practice and see subscription options.")
                             .font(.body)
                             .foregroundColor(Color.theme.textSecondary)
                             .multilineTextAlignment(.center)
-                        
-                        Text("Or wait until Friday for your next free question")
-                            .font(.caption)
-                            .foregroundColor(Color.theme.textSecondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.top, 4)
-                        
-                        Button(action: {
-                            showingSubscriptionBenefits = true
-                        }) {
-                            HStack {
-                                Image(systemName: "crown.fill")
-                                    .font(.title3)
-                                Text("Start Free Trial")
-                                    .font(.headline)
-                            }
-                            .foregroundColor(.black)
-                            .padding(.vertical, 14)
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .padding(.horizontal)
+                            .padding(.horizontal)
                     }
                     .padding()
                     .background(Theme.Colors.surface)
@@ -317,99 +489,9 @@ struct HomeView: View {
                     .cornerRadius(Theme.Metrics.cornerRadius)
                     .padding(.horizontal)
                 }
-            }
-            
-            Spacer()
-                    .frame(height: 20)
-            }
-        }
-        .refreshable {
-            // Pull-to-refresh: Force refresh subscription and answered status
-            await refreshData()
-        }
-        .navigationTitle("")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                NavigationLink(destination: ProfileView(isLoggedIn: $isLoggedIn)) {
-                    Image(systemName: "person.circle.fill")
-                        .font(.title2)
-                }
-                .accessibilityIdentifier("ProfileButton")
-            }
-        }
-        .sheet(isPresented: $showingQuestion) {
-            QuestionView(
-                isPresented: $showingQuestion,
-                hasAnsweredToday: $hasAnsweredToday
-            )
-        }
-        .onChange(of: showingQuestion) { oldValue, newValue in
-            // When question sheet is dismissed, refresh answered status
-            if oldValue && !newValue {
-                Task {
-                    // Check if they actually answered (not just dismissed)
-                    let answered = await QuestionService.shared.hasAnsweredToday()
-                    let hasAnswered = await questionService.hasAnsweredAnyQuestion()
-                    let wasFirstQuestion = !hasAnsweredBefore && hasAnswered
-                    
-                    await MainActor.run {
-                        hasAnsweredToday = answered
-                        hasAnsweredBefore = hasAnswered
-                        
-                        // If they just completed their first question AND don't have active subscription, show trial popup
-                        if wasFirstQuestion && subscriptionService.currentSubscription?.isActive != true {
-                            // Small delay to ensure smooth transition
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                showingFirstQuestionComplete = true
-                            }
-                        }
-                    }
-                    
-                    // If they answered, invalidate caches
-                    if answered {
-                        subscriptionService.invalidateCache() // For trial status
-                        questionService.invalidateProgressCache() // For stats refresh
-                    }
-                    
-                    // Refresh access status (this will use fresh data if cache was invalidated)
-                    let canAccess = await subscriptionService.canAccessQuestions()
-                    await MainActor.run {
-                        canAccessQuestions = canAccess
-                    }
-                }
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SubscriptionSuccess"))) { _ in
-            // Dismiss subscription benefits view when subscription succeeds
-            showingSubscriptionBenefits = false
-            // Force refresh subscription status and UI
-            Task {
-                _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
-                let canAccess = await subscriptionService.canAccessQuestions()
-                let answered = await QuestionService.shared.hasAnsweredToday()
-                await MainActor.run {
-                    self.canAccessQuestions = canAccess
-                    self.hasAnsweredToday = answered
-                }
-                print("✅ Subscription success notification received - UI refreshed")
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowSubscriptionAfterOnboarding"))) { _ in
-            // Show subscription screen after onboarding completes
-            showingSubscriptionBenefits = true
-        }
-        .onDisappear {
-            // Always dismiss subscription screen when leaving home view
-            // This prevents it from showing when user returns to app
-            showingSubscriptionBenefits = false
-        }
-        .sheet(isPresented: $showingSubscriptionBenefits) {
-            SubscriptionBenefitsView()
-        }
-        .sheet(isPresented: $showingFirstQuestionComplete) {
-            FirstQuestionCompleteView()
         }
     }
+    
     
     // MARK: - Refresh Data (Pull-to-Refresh)
     private func refreshData() async {
@@ -482,6 +564,7 @@ struct HomeView: View {
     }
     
     // MARK: - Get Question Button Text
+    
     private func getQuestionButtonText() -> String {
         // If user has active subscription or trial, always show standard text
         if subscriptionService.currentSubscription?.isActive == true {
@@ -640,3 +723,4 @@ struct QuestionView: View {
         }
     }
 }
+

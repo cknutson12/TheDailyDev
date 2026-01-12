@@ -117,6 +117,9 @@ struct ForgotPasswordView: View {
     }
     
     private func sendResetLink() async {
+        // Track password reset requested
+        AnalyticsService.shared.track("password_reset_requested")
+        
         isLoading = true
         message = ""
         

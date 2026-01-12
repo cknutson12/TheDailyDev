@@ -233,6 +233,13 @@ struct MatchingQuestionView: View {
         }
         .background(Color.theme.background)
         .preferredColorScheme(.dark)
+        .onAppear {
+            AnalyticsService.shared.track("question_viewed", properties: [
+                "question_id": question.id.uuidString,
+                "question_type": "matching",
+                "question_category": question.category ?? "unknown"
+            ])
+        }
     }
     
     // MARK: - Helper Functions

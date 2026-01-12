@@ -25,6 +25,19 @@ struct SubscriptionBenefitsView: View {
                 }
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            // Track paywall viewed
+            Task {
+                let hasAnsweredQuestion = await QuestionService.shared.hasAnsweredAnyQuestion()
+                let hasActiveSubscription = SubscriptionService.shared.currentSubscription?.isActive ?? false
+                
+                AnalyticsService.shared.track("paywall_viewed", properties: [
+                    "source": "subscription_benefits",
+                    "user_has_answered_question": hasAnsweredQuestion,
+                    "user_has_active_subscription": hasActiveSubscription
+                ])
+            }
+        }
     }
     
 }

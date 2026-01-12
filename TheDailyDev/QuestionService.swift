@@ -17,7 +17,7 @@ class QuestionService: ObservableObject {
     private var hasAnsweredTodayFetchTime: Date?
     private var lastCheckedDate: String? // Track which day we checked
     
-    private var cachedHasAnsweredAny: Bool?
+    var cachedHasAnsweredAny: Bool? // Internal for analytics tracking
     // No timeout - once true, always true
     
     private var cachedStreak: Int?
@@ -237,6 +237,10 @@ class QuestionService: ObservableObject {
             
             print("🔐 Authenticated user ID: \(userId)")
             
+            // Check if this is the first question answered
+            let hasAnsweredAny = await hasAnsweredAnyQuestion()
+            let isFirstQuestion = !hasAnsweredAny
+            
             // Save with actual completion time (when user actually answered)
             let progress = UserProgress(
                 id: UUID(),
@@ -254,6 +258,55 @@ class QuestionService: ObservableObject {
                 .execute()
                 
             print("✅ Progress saved successfully")
+            
+            // Track question answered
+            AnalyticsService.shared.track("question_answered", properties: [
+                "question_id": questionId.uuidString,
+                "question_type": "multiple_choice",
+                "is_correct": isCorrect,
+                "time_taken": timeTaken
+            ])
+            
+            // Track correct/incorrect
+            if isCorrect {
+                AnalyticsService.shared.track("question_correct", properties: [
+                    "question_id": questionId.uuidString,
+                    "question_type": "multiple_choice",
+                    "time_taken": timeTaken
+                ])
+            } else {
+                AnalyticsService.shared.track("question_incorrect", properties: [
+                    "question_id": questionId.uuidString,
+                    "question_type": "multiple_choice",
+                    "time_taken": timeTaken
+                ])
+            }
+            
+            // Track first question answered (for conversion funnel)
+            if isFirstQuestion {
+                let timeToFirstQuestion = AnalyticsService.shared.getTimeToFirstQuestion() ?? 0
+                AnalyticsService.shared.track("first_question_answered", properties: [
+                    "question_id": questionId.uuidString,
+                    "question_type": "multiple_choice",
+                    "time_to_first_question": timeToFirstQuestion,
+                    "is_correct": isCorrect
+                ])
+                
+                // Batch user properties to reduce PostHog events
+                var properties: [String: Any] = ["first_question_date": DateUtils.iso8601WithFractional.string(from: Date())]
+                
+                // Update total questions answered
+                let progressHistory = await fetchUserProgressHistory()
+                let totalAnswered = progressHistory.count
+                properties["total_questions_answered"] = totalAnswered
+                
+                AnalyticsService.shared.setUserProperties(properties)
+            } else {
+                // Not first question - just update total
+                let progressHistory = await fetchUserProgressHistory()
+                let totalAnswered = progressHistory.count
+                AnalyticsService.shared.setUserProperty("total_questions_answered", value: totalAnswered)
+            }
         } catch {
             print(" Failed to save progress: \(error)")
         }
@@ -268,6 +321,10 @@ class QuestionService: ObservableObject {
             
             print("🔐 Authenticated user ID: \(userId)")
             print("📝 Submitting matching answer with \(matches.count) matches")
+            
+            // Check if this is the first question answered
+            let hasAnsweredAny = await hasAnsweredAnyQuestion()
+            let isFirstQuestion = !hasAnsweredAny
             
             // Convert matches dictionary to JSON string for storage
             let matchesData = try JSONEncoder().encode(matches)
@@ -290,6 +347,51 @@ class QuestionService: ObservableObject {
                 .execute()
                 
             print("✅ Matching answer saved successfully")
+            
+            // Track question answered (same as submitAnswer)
+            AnalyticsService.shared.track("question_answered", properties: [
+                "question_id": questionId.uuidString,
+                "question_type": "matching",
+                "is_correct": isCorrect,
+                "time_taken": timeTaken
+            ])
+            
+            if isCorrect {
+                AnalyticsService.shared.track("question_correct", properties: [
+                    "question_id": questionId.uuidString,
+                    "question_type": "matching",
+                    "time_taken": timeTaken
+                ])
+            } else {
+                AnalyticsService.shared.track("question_incorrect", properties: [
+                    "question_id": questionId.uuidString,
+                    "question_type": "matching",
+                    "time_taken": timeTaken
+                ])
+            }
+            
+            if isFirstQuestion {
+                let timeToFirstQuestion = AnalyticsService.shared.getTimeToFirstQuestion() ?? 0
+                AnalyticsService.shared.track("first_question_answered", properties: [
+                    "question_id": questionId.uuidString,
+                    "question_type": "matching",
+                    "time_to_first_question": timeToFirstQuestion,
+                    "is_correct": isCorrect
+                ])
+                // Batch user properties to reduce PostHog events
+                var properties: [String: Any] = ["first_question_date": DateUtils.iso8601WithFractional.string(from: Date())]
+                
+                let progressHistory = await fetchUserProgressHistory()
+                let totalAnswered = progressHistory.count
+                properties["total_questions_answered"] = totalAnswered
+                
+                AnalyticsService.shared.setUserProperties(properties)
+            } else {
+                // Not first question - just update total
+                let progressHistory = await fetchUserProgressHistory()
+                let totalAnswered = progressHistory.count
+                AnalyticsService.shared.setUserProperty("total_questions_answered", value: totalAnswered)
+            }
         } catch {
             print("❌ Failed to save matching answer: \(error)")
         }
@@ -303,6 +405,10 @@ class QuestionService: ObservableObject {
             
             print("🔐 Authenticated user ID: \(userId)")
             print("📝 Submitting ordering answer with \(orderIds.count) items")
+            
+            // Check if this is the first question answered
+            let hasAnsweredAny = await hasAnsweredAnyQuestion()
+            let isFirstQuestion = !hasAnsweredAny
             
             let orderData = try JSONEncoder().encode(orderIds)
             let orderString = String(data: orderData, encoding: .utf8) ?? "[]"
@@ -324,6 +430,51 @@ class QuestionService: ObservableObject {
                 .execute()
             
             print("✅ Ordering answer saved successfully")
+            
+            // Track question answered (same as submitAnswer)
+            AnalyticsService.shared.track("question_answered", properties: [
+                "question_id": questionId.uuidString,
+                "question_type": "ordering",
+                "is_correct": isCorrect,
+                "time_taken": timeTaken
+            ])
+            
+            if isCorrect {
+                AnalyticsService.shared.track("question_correct", properties: [
+                    "question_id": questionId.uuidString,
+                    "question_type": "ordering",
+                    "time_taken": timeTaken
+                ])
+            } else {
+                AnalyticsService.shared.track("question_incorrect", properties: [
+                    "question_id": questionId.uuidString,
+                    "question_type": "ordering",
+                    "time_taken": timeTaken
+                ])
+            }
+            
+            if isFirstQuestion {
+                let timeToFirstQuestion = AnalyticsService.shared.getTimeToFirstQuestion() ?? 0
+                AnalyticsService.shared.track("first_question_answered", properties: [
+                    "question_id": questionId.uuidString,
+                    "question_type": "ordering",
+                    "time_to_first_question": timeToFirstQuestion,
+                    "is_correct": isCorrect
+                ])
+                // Batch user properties to reduce PostHog events
+                var properties: [String: Any] = ["first_question_date": DateUtils.iso8601WithFractional.string(from: Date())]
+                
+                let progressHistory = await fetchUserProgressHistory()
+                let totalAnswered = progressHistory.count
+                properties["total_questions_answered"] = totalAnswered
+                
+                AnalyticsService.shared.setUserProperties(properties)
+            } else {
+                // Not first question - just update total
+                let progressHistory = await fetchUserProgressHistory()
+                let totalAnswered = progressHistory.count
+                AnalyticsService.shared.setUserProperty("total_questions_answered", value: totalAnswered)
+            }
         } catch {
             print("❌ Failed to save ordering answer: \(error)")
         }
@@ -467,6 +618,29 @@ class QuestionService: ObservableObject {
                 break
             }
             currentDate = previousDay
+        }
+        
+        // Track streak milestones (7, 14, 30 days)
+        let previousStreak = cachedStreak ?? 0
+        if streak >= 7 && previousStreak < 7 {
+            AnalyticsService.shared.track("streak_achieved", properties: [
+                "streak_days": 7
+            ])
+        }
+        if streak >= 14 && previousStreak < 14 {
+            AnalyticsService.shared.track("streak_achieved", properties: [
+                "streak_days": 14
+            ])
+        }
+        if streak >= 30 && previousStreak < 30 {
+            AnalyticsService.shared.track("streak_achieved", properties: [
+                "streak_days": 30
+            ])
+        }
+        
+        // Update user property only if streak changed (to reduce redundant PostHog events)
+        if cachedStreak != streak {
+            AnalyticsService.shared.setUserProperty("streak_count", value: streak)
         }
         
         // Cache the result (valid until midnight)

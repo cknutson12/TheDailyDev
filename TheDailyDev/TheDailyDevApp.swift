@@ -7,6 +7,7 @@
 
 import SwiftUI
 import RevenueCat
+import PostHog
 
 @main
 struct TheDailyDevApp: App {
@@ -24,6 +25,12 @@ struct TheDailyDevApp: App {
         Purchases.configure(withAPIKey: Config.revenueCatAPIKey)
         
         DebugLogger.log("✅ RevenueCat SDK initialized with API key")
+        
+        // Initialize PostHog Analytics
+        AnalyticsService.shared.initialize()
+        
+        // Note: We don't need to track "app_open" manually
+        // PostHog automatically tracks "Application Opened" via PostHogAppLifeCycleIntegration
     }
     
     var body: some Scene {
@@ -48,12 +55,12 @@ struct TheDailyDevApp: App {
                 }
                 .sheet(isPresented: $emailVerificationManager.showingOnboarding) {
                     OnboardingView(onContinue: {
+                        DebugLogger.log("📝 OnboardingView 'Get Started' tapped (from email verification)")
                         emailVerificationManager.dismiss()
-                        // After onboarding, show subscription screen
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            // Post notification to show subscription screen
-                            NotificationCenter.default.post(name: NSNotification.Name("ShowSubscriptionAfterOnboarding"), object: nil)
-                        }
+                        
+                        // Start the tour as part of default onboarding flow
+                        DebugLogger.log("🚀 Starting onboarding tour...")
+                        OnboardingTourManager.shared.startTour()
                     })
                 }
         }

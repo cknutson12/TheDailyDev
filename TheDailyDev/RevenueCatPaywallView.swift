@@ -130,15 +130,24 @@ struct RevenueCatPaywallView: View {
                                 .padding(.horizontal)
                             }
                             
-                            // Restore Purchases
-                            Button(action: {
-                                Task {
-                                    await restorePurchases()
-                                }
-                            }) {
-                                Text("Restore Purchases")
+                            // Free Friday note
+                            VStack(spacing: 12) {
+                                Text("No subscription? Come back Friday for your next free question")
                                     .font(.subheadline)
                                     .foregroundColor(Color.theme.textSecondary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal)
+                                
+                                // Restore Purchases
+                                Button(action: {
+                                    Task {
+                                        await restorePurchases()
+                                    }
+                                }) {
+                                    Text("Restore Purchases")
+                                        .font(.subheadline)
+                                        .foregroundColor(Color.theme.textSecondary)
+                                }
                             }
                             .padding(.bottom, 20)
                         }
@@ -157,6 +166,19 @@ struct RevenueCatPaywallView: View {
         }
         .task {
             await loadPackages()
+        }
+        .onAppear {
+            // Track paywall viewed
+            Task {
+                let hasAnsweredQuestion = await QuestionService.shared.hasAnsweredAnyQuestion()
+                let hasActiveSubscription = SubscriptionService.shared.currentSubscription?.isActive ?? false
+                
+                AnalyticsService.shared.track("paywall_viewed", properties: [
+                    "source": "revenuecat_paywall",
+                    "user_has_answered_question": hasAnsweredQuestion,
+                    "user_has_active_subscription": hasActiveSubscription
+                ])
+            }
         }
     }
     
@@ -189,11 +211,23 @@ struct RevenueCatPaywallView: View {
     private func purchasePackage(_ package: Package) async {
         isPurchasing = true
         
+        // Track purchase started
+        let plan = package.storeProduct.productIdentifier
+        AnalyticsService.shared.track("subscription_purchase_started", properties: [
+            "plan": plan,
+            "package_type": package.packageType.rawValue
+        ])
+        
         do {
             let (_, customerInfo, userCancelled) = try await Purchases.shared.purchase(package: package)
             
             // Check if user cancelled
             if userCancelled {
+                // Track purchase cancelled
+                AnalyticsService.shared.track("subscription_purchase_cancelled", properties: [
+                    "plan": plan
+                ])
+                
                 await MainActor.run {
                     isPurchasing = false
                 }
@@ -231,6 +265,27 @@ struct RevenueCatPaywallView: View {
                 print("✅ Purchase successful - entitlement active")
                 print("   - Entitlement ID: \(entitlement.identifier)")
                 print("   - Will renew: \(entitlement.willRenew)")
+                
+                // Track purchase successful
+                let price = package.storeProduct.localizedPriceString
+                // Check if this is a trial by checking if willRenew is true and expiration date exists
+                // In RevenueCat, trials typically have willRenew = true and an expiration date
+                let isTrial = entitlement.willRenew && entitlement.expirationDate != nil
+                // Calculate trial days if available (approximate based on expiration)
+                let trialDays: Int
+                if isTrial, let expiration = entitlement.expirationDate {
+                    let days = Int(expiration.timeIntervalSinceNow / 86400)
+                    trialDays = max(0, days)
+                } else {
+                    trialDays = 0
+                }
+                
+                AnalyticsService.shared.track("subscription_purchased", properties: [
+                    "plan": plan,
+                    "price": price,
+                    "is_trial": isTrial,
+                    "trial_days": trialDays
+                ])
                 
                 // Refresh subscription status
                 _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
@@ -293,6 +348,12 @@ struct RevenueCatPaywallView: View {
                 }
             }
         } catch {
+            // Track purchase failed
+            AnalyticsService.shared.track("subscription_purchase_failed", properties: [
+                "plan": plan,
+                "error": error.localizedDescription
+            ])
+            
             await MainActor.run {
                 errorMessage = error.localizedDescription
                 isPurchasing = false

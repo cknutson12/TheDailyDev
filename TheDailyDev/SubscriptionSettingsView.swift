@@ -237,6 +237,9 @@ struct SubscriptionSettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            AnalyticsService.shared.trackScreen("subscription_settings")
+        }
         .alert("Sign Out", isPresented: $showingSignOutConfirmation) {
             Button("Cancel", role: .cancel) { }
                 .accessibilityIdentifier("CancelSignOutButton")
@@ -262,8 +265,12 @@ struct SubscriptionSettingsView: View {
                 dismiss()
             }
         } catch {
+            // If sign out fails (e.g., account deleted), try force sign out
+            DebugLogger.log("⚠️ Sign out failed, attempting force sign out: \(error)")
+            await AuthManager.shared.forceSignOut()
             await MainActor.run {
-                signOutError = "Failed to sign out: \(error.localizedDescription)"
+                isLoggedIn = false
+                dismiss()
             }
         }
         isSigningOut = false

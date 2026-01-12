@@ -150,6 +150,9 @@ struct SubscriptionDetailsView: View {
         .navigationTitle("Subscription Details")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
+        .onAppear {
+            AnalyticsService.shared.trackScreen("subscription_details")
+        }
         .task {
             // Fetch price from RevenueCat
             await loadSubscriptionPrice()

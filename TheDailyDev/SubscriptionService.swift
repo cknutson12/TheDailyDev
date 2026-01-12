@@ -200,8 +200,17 @@ class SubscriptionService: ObservableObject {
                 }
                 // If record exists, do nothing else - RevenueCat webhook and syncRevenueCatStatus() manage subscription fields
             }
+        } catch let error as PostgrestError {
+            // Handle foreign key constraint errors (user deleted from auth.users but session still exists)
+            if error.code == "23503" {
+                DebugLogger.log("⚠️ Foreign key constraint error in ensureUserSubscriptionRecord - user may have been deleted")
+                DebugLogger.log("   This is expected if the account was deleted. Skipping record creation.")
+                // Don't throw - this is expected when account is deleted
+            } else {
+                DebugLogger.error("❌ Failed to ensure user_subscriptions record: \(error)")
+            }
         } catch {
-            print("❌ Failed to ensure user_subscriptions record: \(error)")
+            DebugLogger.error("❌ Failed to ensure user_subscriptions record: \(error)")
             // Don't throw - this is a background operation
         }
     }
@@ -243,10 +252,45 @@ class SubscriptionService: ObservableObject {
                     .execute()
                     .value
                 
+                let previousSubscription = await MainActor.run { self.currentSubscription }
+                let newSubscription = subscriptions.first
+                
                 await MainActor.run {
-                    self.currentSubscription = subscriptions.first
+                    self.currentSubscription = newSubscription
                     self.lastFetchTime = Date()
                     self.currentFetchTask = nil // Clear task reference when done
+                }
+                
+                // Track subscription status changes
+                if let newSub = newSubscription {
+                    // Batch user properties together to reduce event noise
+                    var userProperties: [String: Any] = ["subscription_status": newSub.status]
+                    if let plan = newSub.status == "active" || newSub.status == "trialing" ? (newSub.currentPeriodEnd != nil ? "monthly" : "yearly") : nil {
+                        userProperties["subscription_plan"] = plan
+                    }
+                    AnalyticsService.shared.setUserProperties(userProperties)
+                    
+                    // Track trial events
+                    if let previous = previousSubscription {
+                        // Check if trial started
+                        if previous.status != "trialing" && newSub.status == "trialing" {
+                            AnalyticsService.shared.track("trial_started", properties: [
+                                "trial_end_date": newSub.trialEnd ?? ""
+                            ])
+                        }
+                        
+                        // Check if trial converted
+                        if previous.status == "trialing" && newSub.status == "active" {
+                            AnalyticsService.shared.track("trial_converted", properties: [
+                                "plan": "monthly" // Could be enhanced to detect actual plan
+                            ])
+                        }
+                    } else if newSub.status == "trialing" {
+                        // New subscription with trial
+                        AnalyticsService.shared.track("trial_started", properties: [
+                            "trial_end_date": newSub.trialEnd ?? ""
+                        ])
+                    }
                 }
                 
                 print("✅ Subscription status updated: \(subscriptions.first?.status ?? "none")")
@@ -360,6 +404,15 @@ class SubscriptionService: ObservableObject {
                 .execute()
             
                 print("✅ Synced RevenueCat status to database")
+            } catch let error as PostgrestError {
+                // Handle foreign key constraint errors (user deleted from auth.users but session still exists)
+                if error.code == "23503" {
+                    DebugLogger.log("⚠️ Foreign key constraint error in syncRevenueCatStatus - user may have been deleted")
+                    DebugLogger.log("   This is expected if the account was deleted. Skipping sync.")
+                    // Don't throw - this is expected when account is deleted
+                } else {
+                    DebugLogger.error("⚠️ Failed to sync RevenueCat status: \(error)")
+                }
             } catch {
                 let nsError = error as NSError
                 // Don't log cancelled errors as failures - they're expected when requests are deduplicated
@@ -444,6 +497,9 @@ class SubscriptionService: ObservableObject {
     
     // MARK: - Cancel Subscription
     func cancelSubscription() async throws {
+        // Track subscription cancelled
+        AnalyticsService.shared.track("subscription_cancelled")
+        
         try await revenueCatProvider.cancelSubscription()
         
         // Refresh subscription status

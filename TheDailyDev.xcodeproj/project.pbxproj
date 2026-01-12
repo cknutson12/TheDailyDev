@@ -26,6 +26,12 @@
 		7D95826D2EAB0574008AFC8E /* ContributionsTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D95826C2EAB0574008AFC8E /* ContributionsTracker.swift */; };
 		7D95826E2EAB0574008AFC8E /* ConfigTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D95826F2EAB0574008AFC8E /* ConfigTest.swift */; };
 		D1E2B3U42ED99999008AFC8E /* DebugLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2B3U52ED99999008AFC8E /* DebugLogger.swift */; };
+		A1N2A3L42ED99999108AFC8E /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1N2A3L52ED99999108AFC8E /* AnalyticsService.swift */; };
+		T1O2U3R42ED99999208AFC8E /* TourStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1O2U3R52ED99999208AFC8E /* TourStep.swift */; };
+		O1N2B3O52ED99999308AFC8E /* OnboardingTourManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = O1N2B3O62ED99999308AFC8E /* OnboardingTourManager.swift */; };
+		T1O2U3R62ED99999408AFC8E /* TourOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1O2U3R72ED99999408AFC8E /* TourOverlayView.swift */; };
+		V1I2E3W42ED99999508AFC8E /* ViewFramePreferenceKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = V1I2E3W52ED99999508AFC8E /* ViewFramePreferenceKey.swift */; };
+		T1O2U3R82ED99999608AFC8E /* TourHighlightModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1O2U3R92ED99999608AFC8E /* TourHighlightModifier.swift */; };
 		7D9582702EAB0574008AFC8E /* CategoryPerformanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9582712EAB0574008AFC8E /* CategoryPerformanceView.swift */; };
 		7D9582702EAE8037008AFC8E /* SubscriptionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D95826C2EAE8037008AFC8E /* SubscriptionSettingsView.swift */; };
 		7D9582712EAE8037008AFC8E /* SubscriptionBenefitsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D95826D2EAE8037008AFC8E /* SubscriptionBenefitsView.swift */; };
@@ -34,6 +40,7 @@
 		7D9582762EAE8037008AFC8E /* RevenueCatSubscriptionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9582772EAE8037008AFC8E /* RevenueCatSubscriptionProvider.swift */; };
 		7D9582782EAE8037008AFC8E /* RevenueCatPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9582792EAE8037008AFC8E /* RevenueCatPaywallView.swift */; };
 		7D9A3F0B2EEDD28100A9D697 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 7D9A3F0C2EEDD28100A9D697 /* RevenueCat */; };
+		P1O2S3T62ED99999008AFC8E /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = P1O2S3T52ED99999008AFC8E /* PostHog */; };
 		7DCCAE012E9F30B2003A8156 /* TheDailyDevApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DCCAE002E9F30B2003A8156 /* TheDailyDevApp.swift */; };
 		7DCCAE032E9F30B2003A8156 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DCCAE022E9F30B2003A8156 /* ContentView.swift */; };
 		7DCCAE052E9F30B4003A8156 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7DCCAE042E9F30B4003A8156 /* Assets.xcassets */; };
@@ -101,6 +108,12 @@
 		7D95826E2EAE8037008AFC8E /* SubscriptionModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SubscriptionModels.swift; sourceTree = "<group>"; };
 		7D95826F2EAB0574008AFC8E /* ConfigTest.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ConfigTest.swift; sourceTree = "<group>"; };
 		D1E2B3U52ED99999008AFC8E /* DebugLogger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugLogger.swift; sourceTree = "<group>"; };
+		A1N2A3L52ED99999108AFC8E /* AnalyticsService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AnalyticsService.swift; sourceTree = "<group>"; };
+		T1O2U3R52ED99999208AFC8E /* TourStep.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TourStep.swift; sourceTree = "<group>"; };
+		O1N2B3O62ED99999308AFC8E /* OnboardingTourManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingTourManager.swift; sourceTree = "<group>"; };
+		T1O2U3R72ED99999408AFC8E /* TourOverlayView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TourOverlayView.swift; sourceTree = "<group>"; };
+		V1I2E3W52ED99999508AFC8E /* ViewFramePreferenceKey.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ViewFramePreferenceKey.swift; sourceTree = "<group>"; };
+		T1O2U3R92ED99999608AFC8E /* TourHighlightModifier.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TourHighlightModifier.swift; sourceTree = "<group>"; };
 		7D95826F2EAE8037008AFC8E /* SubscriptionService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SubscriptionService.swift; sourceTree = "<group>"; };
 		7D9582712EAB0574008AFC8E /* CategoryPerformanceView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CategoryPerformanceView.swift; sourceTree = "<group>"; };
 		7D9582742EAE88BE008AFC8E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -144,6 +157,7 @@
 			files = (
 				7DCCAE342EA1D043003A8156 /* Supabase in Frameworks */,
 				7D9A3F0B2EEDD28100A9D697 /* RevenueCat in Frameworks */,
+				P1O2S3T62ED99999008AFC8E /* PostHog in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -221,6 +235,12 @@
 				7D95826C2EAB0574008AFC8E /* ContributionsTracker.swift */,
 				7D95826F2EAB0574008AFC8E /* ConfigTest.swift */,
 				D1E2B3U52ED99999008AFC8E /* DebugLogger.swift */,
+				A1N2A3L52ED99999108AFC8E /* AnalyticsService.swift */,
+				T1O2U3R52ED99999208AFC8E /* TourStep.swift */,
+				O1N2B3O62ED99999308AFC8E /* OnboardingTourManager.swift */,
+				T1O2U3R72ED99999408AFC8E /* TourOverlayView.swift */,
+				V1I2E3W52ED99999508AFC8E /* ViewFramePreferenceKey.swift */,
+				T1O2U3R92ED99999608AFC8E /* TourHighlightModifier.swift */,
 				7D9582712EAB0574008AFC8E /* CategoryPerformanceView.swift */,
 				7DCCAE302EA08B08003A8156 /* ProfileView.swift */,
 				7DCCAE352EA1D08A003A8156 /* SupabaseManager.swift */,
@@ -284,6 +304,7 @@
 			packageProductDependencies = (
 				7DCCAE332EA1D043003A8156 /* Supabase */,
 				7D9A3F0C2EEDD28100A9D697 /* RevenueCat */,
+				P1O2S3T52ED99999008AFC8E /* PostHog */,
 			);
 			productName = TheDailyDev;
 			productReference = 7DCCADFD2E9F30B2003A8156 /* TheDailyDev.app */;
@@ -360,6 +381,7 @@
 			packageReferences = (
 				7DCCAE322EA1D042003A8156 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				7D9A3F0A2EEDD28100A9D697 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
+				P1O2S3T42ED99999008AFC8E /* XCRemoteSwiftPackageReference "posthog-ios" */,
 			);
 			productRefGroup = 7DCCADFE2E9F30B2003A8156 /* Products */;
 			projectDirPath = "";
@@ -440,6 +462,12 @@
 				7D95826D2EAB0574008AFC8E /* ContributionsTracker.swift in Sources */,
 				7D95826E2EAB0574008AFC8E /* ConfigTest.swift in Sources */,
 				D1E2B3U42ED99999008AFC8E /* DebugLogger.swift in Sources */,
+				A1N2A3L42ED99999108AFC8E /* AnalyticsService.swift in Sources */,
+				T1O2U3R42ED99999208AFC8E /* TourStep.swift in Sources */,
+				O1N2B3O52ED99999308AFC8E /* OnboardingTourManager.swift in Sources */,
+				T1O2U3R62ED99999408AFC8E /* TourOverlayView.swift in Sources */,
+				V1I2E3W42ED99999508AFC8E /* ViewFramePreferenceKey.swift in Sources */,
+				T1O2U3R82ED99999608AFC8E /* TourHighlightModifier.swift in Sources */,
 				7D9582702EAB0574008AFC8E /* CategoryPerformanceView.swift in Sources */,
 				7D9582732EAE8037008AFC8E /* SubscriptionService.swift in Sources */,
 				7D9582762EAE8037008AFC8E /* RevenueCatSubscriptionProvider.swift in Sources */,
@@ -798,6 +826,14 @@
 				minimumVersion = 2.5.1;
 			};
 		};
+		P1O2S3T42ED99999008AFC8E /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -810,6 +846,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7DCCAE322EA1D042003A8156 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		P1O2S3T52ED99999008AFC8E /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = P1O2S3T42ED99999008AFC8E /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

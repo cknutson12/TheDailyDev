@@ -156,6 +156,13 @@ struct MultipleChoiceQuestionView: View {
         .padding()
         .background(Color.theme.background)
         .preferredColorScheme(.dark)
+        .onAppear {
+            AnalyticsService.shared.track("question_viewed", properties: [
+                "question_id": question.id.uuidString,
+                "question_type": "multiple_choice",
+                "question_category": question.category ?? "unknown"
+            ])
+        }
     }
     
     private func submitAnswer() {

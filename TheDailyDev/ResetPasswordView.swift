@@ -241,6 +241,9 @@ struct ResetPasswordView: View {
             // Update password using the validated session
             try await SupabaseManager.shared.client.auth.update(user: UserAttributes(password: newPassword))
             
+            // Track password reset completed
+            AnalyticsService.shared.track("password_reset_completed")
+            
             // Sign out after password update (code is now invalidated)
             try await SupabaseManager.shared.client.auth.signOut()
             

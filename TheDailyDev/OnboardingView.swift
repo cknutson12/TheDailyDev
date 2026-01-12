@@ -79,7 +79,10 @@ struct OnboardingView: View {
                     .padding(.horizontal, Theme.Metrics.spacing16)
                     
                     // Get Started Button
-                    Button(action: onContinue) {
+                    Button(action: {
+                        AnalyticsService.shared.track("onboarding_completed")
+                        onContinue()
+                    }) {
                         Text("Get Started")
                             .font(.headline)
                             .foregroundColor(.black)
@@ -98,6 +101,9 @@ struct OnboardingView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            AnalyticsService.shared.track("onboarding_viewed")
+        }
     }
 }
 

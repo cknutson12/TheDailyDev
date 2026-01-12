@@ -36,6 +36,21 @@ struct Config {
         return key
     }
     
+    // MARK: - PostHog Configuration
+    static var postHogAPIKey: String {
+        guard let path = Bundle.main.path(forResource: "Config-Secrets", ofType: "plist"),
+              let plist = NSDictionary(contentsOfFile: path),
+              let key = plist["POSTHOG_API_KEY"] as? String else {
+            #if DEBUG
+            DebugLogger.log("⚠️ POSTHOG_API_KEY not found in Config-Secrets.plist")
+            return ""
+            #else
+            fatalError("POSTHOG_API_KEY not found in Config-Secrets.plist")
+            #endif
+        }
+        return key
+    }
+    
     // RevenueCat Entitlement Identifier
     // NOTE: This must match the entitlement identifier in RevenueCat dashboard
     // If you see "The Daily Dev Pro" in logs, update this to match

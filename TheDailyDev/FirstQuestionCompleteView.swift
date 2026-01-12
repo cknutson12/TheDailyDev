@@ -18,81 +18,64 @@ struct FirstQuestionCompleteView: View {
             )
             .ignoresSafeArea()
             
-            VStack(spacing: 32) {
-                Spacer()
-                
-                // Success icon
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 80))
-                    .foregroundColor(Theme.Colors.accentGreen)
-                
-                // Title
-                Text("Great Job!")
-                    .font(.system(size: 36, weight: .heavy, design: .monospaced))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.4, green: 0.9, blue: 0.7),
-                                Theme.Colors.accentGreen
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Success icon - smaller size to fit on screen
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(Theme.Colors.accentGreen)
+                        .padding(.top, 20)
+                    
+                    // Title
+                    Text("Great Job!")
+                        .font(.system(size: 32, weight: .heavy, design: .monospaced))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.4, green: 0.9, blue: 0.7),
+                                    Theme.Colors.accentGreen
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
                         )
-                    )
-                    .shadow(color: Theme.Colors.accentGreen.opacity(0.5), radius: 10, x: 0, y: 0)
-                    .shadow(color: .black.opacity(0.8), radius: 2, x: 0, y: 3)
-                
-                // Subtitle
-                Text("Ready for daily practice?")
-                    .font(.title2)
-                    .foregroundColor(Theme.Colors.textPrimary)
-                
-                // Show RevenueCat paywall for plan selection
-                RevenueCatPaywallView()
-                    .frame(height: 400) // Limit height to fit in view
-                
-                // Benefits list
-                VStack(alignment: .leading, spacing: 12) {
-                    BenefitRow(icon: "calendar", text: "Daily system design questions")
-                    BenefitRow(icon: "chart.line.uptrend.xyaxis", text: "Track your progress")
-                    BenefitRow(icon: "flame.fill", text: "Build your streak")
+                        .shadow(color: Theme.Colors.accentGreen.opacity(0.5), radius: 10, x: 0, y: 0)
+                        .shadow(color: .black.opacity(0.8), radius: 2, x: 0, y: 3)
+                    
+                    // Subtitle
+                    Text("Ready for daily practice?")
+                        .font(.title3)
+                        .foregroundColor(Theme.Colors.textPrimary)
+                        .padding(.bottom, 8)
+                    
+                    // Show RevenueCat paywall for plan selection
+                    RevenueCatPaywallView()
+                        .onAppear {
+                            // Track paywall viewed from first question complete
+                            // This view only shows after first question, so hasAnsweredQuestion is always true
+                            let hasActiveSubscription = subscriptionService.currentSubscription?.isActive ?? false
+                            
+                            AnalyticsService.shared.track("paywall_viewed", properties: [
+                                "source": "first_question_complete",
+                                "user_has_answered_question": true,
+                                "user_has_active_subscription": hasActiveSubscription
+                            ])
+                        }
+                    
+                    // Dismiss button
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Text("No Thanks - I'll use free Friday questions")
+                            .font(.subheadline)
+                            .foregroundColor(Theme.Colors.textSecondary)
+                    }
+                    .padding(.bottom, 20)
                 }
-                .padding(.horizontal, 32)
-                .padding(.top, 8)
-                
-                Spacer()
-                
-                Button(action: {
-                    dismiss()
-                }) {
-                    Text("No Thanks - I'll use free Friday questions")
-                        .font(.subheadline)
-                        .foregroundColor(Theme.Colors.textSecondary)
-                }
-                .padding(.bottom, 16)
+                .padding(.horizontal)
             }
         }
         .preferredColorScheme(.dark)
-    }
-}
-
-struct BenefitRow: View {
-    let icon: String
-    let text: String
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(Theme.Colors.accentGreen)
-                .frame(width: 24)
-            
-            Text(text)
-                .font(.body)
-                .foregroundColor(Theme.Colors.textPrimary)
-            
-            Spacer()
-        }
     }
 }
 

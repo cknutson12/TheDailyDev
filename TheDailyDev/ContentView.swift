@@ -107,6 +107,15 @@ struct ContentView: View {
             // Check for existing session on app launch
             await authManager.checkSession()
             if authManager.isAuthenticated {
+                // Set user ID for analytics
+                do {
+                    let session = try await SupabaseManager.shared.client.auth.session
+                    let userId = session.user.id.uuidString
+                    AnalyticsService.shared.setUserID(userId)
+                } catch {
+                    DebugLogger.log("⚠️ Failed to set analytics user ID: \(error)")
+                }
+                
                 // Set RevenueCat user ID
                 await authManager.setRevenueCatUserID()
                 // Ensure user_subscriptions record exists for OAuth users
@@ -117,12 +126,19 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            // Track app foreground
+            AnalyticsService.shared.track("app_foreground")
+            
             // Refresh subscription status when app comes to foreground
             Task {
                 if authManager.isAuthenticated {
                     _ = await SubscriptionService.shared.fetchSubscriptionStatus(forceRefresh: true)
                 }
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            // Track app background
+            AnalyticsService.shared.track("app_background")
         }
         .onChange(of: authManager.isAuthenticated) { oldValue, newValue in
             // Update isLoggedIn when auth state changes

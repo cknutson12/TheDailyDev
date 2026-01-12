@@ -39,8 +39,35 @@ class AuthManager: ObservableObject {
     }
     
     // MARK: - Sign Out
+    
+    /// Force sign out (useful for testing when account is deleted)
+    /// This clears the session without requiring the sign out button
+    func forceSignOut() async {
+        DebugLogger.log("🚪 Force signing out user (session clear)...")
+        
+        do {
+            try await signOut()
+        } catch {
+            // If signOut fails (e.g., account deleted), just clear local state
+            DebugLogger.log("⚠️ Sign out failed, clearing local state only: \(error)")
+            await MainActor.run {
+                isAuthenticated = false
+                isCheckingAuth = false
+            }
+            // Clear RevenueCat
+            _ = try? await Purchases.shared.logOut()
+            // Clear caches
+            SubscriptionService.shared.clearAllCaches()
+            QuestionService.shared.clearAllCaches()
+            OnboardingTourManager.shared.resetTour()
+        }
+    }
+    
     func signOut() async throws {
-        print("🚪 Signing out user - clearing all caches...")
+        // Track sign-out
+        AnalyticsService.shared.track("sign_out")
+        
+        DebugLogger.log("🚪 Signing out user - clearing all caches...")
         
         // Clear all caches BEFORE signing out to prevent cancelled request errors
         await MainActor.run {
@@ -49,15 +76,22 @@ class AuthManager: ObservableObject {
             
             // Clear all SubscriptionService caches
             SubscriptionService.shared.clearAllCaches()
+            
+            // Reset tour completion so new accounts get a fresh tour
+            OnboardingTourManager.shared.resetTour()
+            DebugLogger.log("✅ Tour completion reset for new account")
         }
+        
+        // Clear analytics user ID
+        AnalyticsService.shared.clearUserID() // Reset PostHog user identity
         
         // Log out from RevenueCat to clear its local cache
         // This ensures no RevenueCat data persists for the next user
         do {
             _ = try await Purchases.shared.logOut()
-            print("✅ RevenueCat logged out - local cache cleared")
+            DebugLogger.log("✅ RevenueCat logged out - local cache cleared")
         } catch {
-            print("⚠️ Failed to log out from RevenueCat: \(error)")
+            DebugLogger.error("⚠️ Failed to log out from RevenueCat: \(error)")
             // Don't throw - continue with sign out even if RevenueCat logout fails
         }
         
@@ -70,7 +104,7 @@ class AuthManager: ObservableObject {
             isCheckingAuth = false // Ensure we're not in checking state after sign out
         }
         
-        print("✅ Sign out complete - all caches cleared")
+        DebugLogger.log("✅ Sign out complete - all caches cleared")
     }
     
     // MARK: - Handle OAuth Callback

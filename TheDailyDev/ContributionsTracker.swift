@@ -72,7 +72,7 @@ struct ContributionsTracker: View {
                             Button(action: {
                                 selectedYear = year
                             }) {
-                                Text("\(year)")
+                                Text(String(year))
                                     .font(.caption)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
@@ -358,6 +358,13 @@ struct ContributionsGrid: View {
                     .id("contributionsGrid")
                 }
                 .onAppear {
+                    // Track progress viewed
+                    let answeredCount = progressHistory.count
+                    AnalyticsService.shared.track("progress_viewed", properties: [
+                        "total_questions_answered": answeredCount,
+                        "year": selectedYear
+                    ])
+                    
                     // Scroll to the right (most recent data) when view appears
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         proxy.scrollTo("contributionsGrid", anchor: .trailing)
@@ -914,6 +921,9 @@ struct QuestionReviewView: View {
                         dismiss()
                     }
                 }
+            }
+            .onAppear {
+                AnalyticsService.shared.trackScreen("question_review")
             }
         }
     }

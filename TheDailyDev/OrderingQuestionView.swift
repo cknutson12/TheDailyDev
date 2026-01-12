@@ -149,6 +149,13 @@ struct OrderingQuestionView: View {
         .padding()
         .background(Color.theme.background)
         .preferredColorScheme(.dark)
+        .onAppear {
+            AnalyticsService.shared.track("question_viewed", properties: [
+                "question_id": question.id.uuidString,
+                "question_type": "ordering",
+                "question_category": question.category ?? "unknown"
+            ])
+        }
     }
     
     private func move(from source: IndexSet, to destination: Int) {

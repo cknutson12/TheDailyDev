@@ -184,6 +184,16 @@ struct LoginView: View {
             } else {
                 // Successfully logged in - update auth manager
                 await AuthManager.shared.checkSession()
+                
+                // Set user ID for analytics
+                let userId = session.user.id.uuidString
+                AnalyticsService.shared.setUserID(userId)
+                
+                // Track sign-in completed
+                AnalyticsService.shared.track("sign_in_completed", properties: [
+                    "sign_in_method": "email"
+                ])
+                
                 // Set RevenueCat user ID
                 await AuthManager.shared.setRevenueCatUserID()
                 // Ensure user_subscriptions record exists
@@ -191,6 +201,12 @@ struct LoginView: View {
                 isLoggedIn = true
             }
         } catch {
+            // Track sign-in failure
+            AnalyticsService.shared.track("sign_in_failed", properties: [
+                "error": error.localizedDescription,
+                "sign_in_method": "email"
+            ])
+            
             isLoggedIn = false
             message = "Sign-in failed: \(error.localizedDescription)"
         }
@@ -209,6 +225,16 @@ struct LoginView: View {
             )
             // If we got a session, the user is already signed in
             await AuthManager.shared.checkSession()
+            
+            // Set user ID for analytics
+            let userId = session.user.id.uuidString
+            AnalyticsService.shared.setUserID(userId)
+            
+            // Track sign-in completed
+            AnalyticsService.shared.track("sign_in_completed", properties: [
+                "sign_in_method": "google_oauth"
+            ])
+            
             // Set RevenueCat user ID
             await AuthManager.shared.setRevenueCatUserID()
             // Ensure user_subscriptions record exists
@@ -217,6 +243,12 @@ struct LoginView: View {
                 isLoggedIn = true
             }
         } catch {
+            // Track sign-in failure
+            AnalyticsService.shared.track("sign_in_failed", properties: [
+                "error": error.localizedDescription,
+                "sign_in_method": "google_oauth"
+            ])
+            
             message = "Failed to sign in with Google: \(error.localizedDescription)"
             print("❌ OAuth error: \(error)")
         }
@@ -228,7 +260,7 @@ struct LoginView: View {
         defer { isLoading = false }
         
         do {
-            let session = try await SupabaseManager.shared.client.auth.signInWithOAuth(
+            _ = try await SupabaseManager.shared.client.auth.signInWithOAuth(
                 provider: .github,
                 redirectTo: URL(string: "com.supabase.thedailydev://oauth-callback")
             )

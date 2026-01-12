@@ -10,7 +10,6 @@ struct SignUpView: View {
     @State private var message = ""
     @State private var isLoading = false
     @State private var showingOnboarding = false
-    @State private var showingSubscriptionBenefits = false
     @State private var showingEmailVerification = false
     @State private var signupEmail = ""
     @StateObject private var subscriptionService = SubscriptionService.shared
@@ -142,29 +141,26 @@ struct SignUpView: View {
                 Spacer()
             }
             .padding()
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SubscriptionSuccess"))) { _ in
-                // Dismiss subscription benefits view when subscription succeeds
-                showingSubscriptionBenefits = false
-            }
             .onDisappear {
                 // Always dismiss screens when leaving signup view
                 // This prevents them from showing when user returns to app
                 showingOnboarding = false
-                showingSubscriptionBenefits = false
             }
             .sheet(isPresented: $showingOnboarding) {
                 OnboardingView(onContinue: {
+                    DebugLogger.log("📝 OnboardingView 'Get Started' tapped")
                     showingOnboarding = false
-                    showingSubscriptionBenefits = true
+                    
+                    // Start the tour as part of default onboarding flow
+                    // This will only start if the tour hasn't been completed
+                    DebugLogger.log("🚀 Starting onboarding tour...")
+                    OnboardingTourManager.shared.startTour()
+                    
+                    // Navigate to home screen
+                    // Tour will be visible when HomeView appears
+                    isLoggedIn = true
+                    DebugLogger.log("✅ Set isLoggedIn = true, navigating to HomeView")
                 })
-            }
-            .sheet(isPresented: $showingSubscriptionBenefits) {
-                SubscriptionBenefitsView(
-                    onSkip: {
-                        showingSubscriptionBenefits = false
-                        isLoggedIn = true
-                    }
-                )
             }
             .sheet(isPresented: $showingEmailVerification) {
                 EmailVerificationView(
@@ -184,6 +180,9 @@ struct SignUpView: View {
     
     // MARK: - Supabase Sign Up with Profile Data
     func signUp() async {
+        // Track sign-up started
+        AnalyticsService.shared.track("sign_up_started")
+        
         isLoading = true
         message = ""
         defer { isLoading = false }
@@ -202,6 +201,18 @@ struct SignUpView: View {
             
             // If sign-up was successful, create user profile
             let user = session.user
+            
+            // Track sign-up completed
+            AnalyticsService.shared.track("sign_up_completed", properties: [
+                "email_verified": user.emailConfirmedAt != nil,
+                "sign_up_method": "email"
+            ])
+            
+            // Set user ID and sign-up date for analytics
+            let userId = user.id.uuidString
+            AnalyticsService.shared.setUserID(userId)
+            AnalyticsService.shared.setSignUpDate(Date())
+            AnalyticsService.shared.setUserProperty("sign_up_method", value: "email")
             
             // Check if email is verified
             if user.emailConfirmedAt == nil {
@@ -236,6 +247,11 @@ struct SignUpView: View {
                 }
             }
         } catch {
+            // Track sign-up failure
+            AnalyticsService.shared.track("sign_up_failed", properties: [
+                "error": error.localizedDescription
+            ])
+            
             isLoggedIn = false
             message = "Sign-up failed: \(error.localizedDescription)"
         }
@@ -247,7 +263,6 @@ struct SignUpView: View {
             let session = try await SupabaseManager.shared.client.auth.session
             if session.user.emailConfirmedAt != nil {
                 // Email is verified, proceed with signup flow
-                let user = session.user
                 
                 // Create user subscription record synchronously
                 // This ensures display name is available immediately
@@ -305,6 +320,11 @@ struct SignUpView: View {
     
     // MARK: - OAuth Sign In
     func signInWithGoogle() async {
+        // Track OAuth sign-up started
+        AnalyticsService.shared.track("sign_up_started", properties: [
+            "sign_up_method": "google_oauth"
+        ])
+        
         do {
             _ = try await SupabaseManager.shared.client.auth.signInWithOAuth(
                 provider: .google,
@@ -312,6 +332,20 @@ struct SignUpView: View {
             )
             // If we got a session, the user is already signed in
             await AuthManager.shared.checkSession()
+            
+            // Get user ID for analytics
+            let session = try await SupabaseManager.shared.client.auth.session
+            let userId = session.user.id.uuidString
+            AnalyticsService.shared.setUserID(userId)
+            AnalyticsService.shared.setSignUpDate(Date())
+            AnalyticsService.shared.setUserProperty("sign_up_method", value: "google_oauth")
+            
+            // Track sign-up completed
+            AnalyticsService.shared.track("sign_up_completed", properties: [
+                "email_verified": session.user.emailConfirmedAt != nil,
+                "sign_up_method": "google_oauth"
+            ])
+            
             // Set RevenueCat user ID
             await AuthManager.shared.setRevenueCatUserID()
             // Ensure user_subscriptions record exists
@@ -323,6 +357,12 @@ struct SignUpView: View {
                 showingOnboarding = true
             }
         } catch {
+            // Track sign-up failure
+            AnalyticsService.shared.track("sign_up_failed", properties: [
+                "error": error.localizedDescription,
+                "sign_up_method": "google_oauth"
+            ])
+            
             await MainActor.run {
                 message = "Failed to sign in with Google: \(error.localizedDescription)"
             }
@@ -331,6 +371,11 @@ struct SignUpView: View {
     }
     
     func signInWithGitHub() async {
+        // Track OAuth sign-up started
+        AnalyticsService.shared.track("sign_up_started", properties: [
+            "sign_up_method": "github_oauth"
+        ])
+        
         do {
             _ = try await SupabaseManager.shared.client.auth.signInWithOAuth(
                 provider: .github,
@@ -338,21 +383,40 @@ struct SignUpView: View {
             )
             // If we got a session, the user is already signed in
             await AuthManager.shared.checkSession()
+            
+            // Get user ID for analytics
+            let session = try await SupabaseManager.shared.client.auth.session
+            let userId = session.user.id.uuidString
+            AnalyticsService.shared.setUserID(userId)
+            AnalyticsService.shared.setSignUpDate(Date())
+            AnalyticsService.shared.setUserProperty("sign_up_method", value: "github_oauth")
+            
+            // Track sign-up completed
+            AnalyticsService.shared.track("sign_up_completed", properties: [
+                "email_verified": session.user.emailConfirmedAt != nil,
+                "sign_up_method": "github_oauth"
+            ])
+            
             // Set RevenueCat user ID
             await AuthManager.shared.setRevenueCatUserID()
             // Ensure user_subscriptions record exists
             await SubscriptionService.shared.ensureUserSubscriptionRecord()
             
-            // Check if this is a new user (first time signing in)
-            // For OAuth, we'll show onboarding for all sign-ins (can be optimized later)
+            // Show onboarding for all OAuth sign-ups (tour will start after onboarding)
             await MainActor.run {
                 showingOnboarding = true
             }
         } catch {
+            // Track sign-up failure
+            AnalyticsService.shared.track("sign_up_failed", properties: [
+                "error": error.localizedDescription,
+                "sign_up_method": "github_oauth"
+            ])
+            
             await MainActor.run {
                 message = "Failed to sign in with GitHub: \(error.localizedDescription)"
             }
-            print("❌ OAuth error: \(error)")
+            DebugLogger.error("❌ OAuth error: \(error)")
         }
     }
 }
