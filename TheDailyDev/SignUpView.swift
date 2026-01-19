@@ -12,6 +12,7 @@ struct SignUpView: View {
     @State private var showingOnboarding = false
     @State private var showingEmailVerification = false
     @State private var signupEmail = ""
+    @State private var isDuplicateEmail = false
     @StateObject private var subscriptionService = SubscriptionService.shared
     
     var body: some View {
@@ -56,10 +57,32 @@ struct SignUpView: View {
                 .cardContainer()
                 
                 if !message.isEmpty {
-                    Text(message)
-                        .foregroundColor(Theme.Colors.stateIncorrect)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
+                    VStack(spacing: 8) {
+                        Text(message)
+                            .foregroundColor(Theme.Colors.stateIncorrect)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal)
+                        
+                        if isDuplicateEmail {
+                            Button(action: {
+                                // Navigate to login with pre-filled email
+                                NotificationCenter.default.post(
+                                    name: NSNotification.Name("NavigateToLoginWithEmail"),
+                                    object: nil,
+                                    userInfo: ["email": email]
+                                )
+                            }) {
+                                Text("Sign In Instead")
+                                    .font(.headline)
+                                    .foregroundColor(Theme.Colors.accentGreen)
+                                    .underline()
+                            }
+                            .padding(.top, 4)
+                        }
+                    }
                 }
                 
                 Button(action: { Task { await signUp() } }) {
@@ -187,6 +210,34 @@ struct SignUpView: View {
         message = ""
         defer { isLoading = false }
         
+        // Check if user already exists before attempting sign-up
+        // We can't directly query auth.users from the client (it's protected)
+        // Instead, we try to sign in - if it succeeds, the user already exists
+        // This is the most reliable method to check for existing users
+        do {
+            // Try to sign in - if this succeeds, the user already exists
+            _ = try await SupabaseManager.shared.client.auth.signIn(
+                email: email,
+                password: password
+            )
+            
+            // Sign-in succeeded - user already exists
+            // Sign out immediately to return to unauthenticated state
+            try? await SupabaseManager.shared.client.auth.signOut()
+            
+            await MainActor.run {
+                isDuplicateEmail = true
+                message = "An account with this email already exists"
+            }
+            
+            return // Exit early, don't proceed with sign-up
+        } catch {
+            // Sign-in failed - this is good! It means the user doesn't exist
+            // or the password is wrong. Either way, we can proceed with sign-up
+            // (if password is wrong, sign-up will also fail, which is fine)
+        }
+        
+        // User doesn't exist (or password was wrong), proceed with sign-up
         do {
             // Redirect URL is configured in Supabase Dashboard
             // Authentication > URL Configuration > Redirect URLs
@@ -199,9 +250,9 @@ struct SignUpView: View {
                 redirectTo: redirectURL
             )
             
-            // If sign-up was successful, create user profile
             let user = session.user
             
+            // Proceed with normal sign-up flow
             // Track sign-up completed
             AnalyticsService.shared.track("sign_up_completed", properties: [
                 "email_verified": user.emailConfirmedAt != nil,
@@ -228,6 +279,7 @@ struct SignUpView: View {
                     showingEmailVerification = true
                 }
             } else {
+                // Email is already confirmed - proceed with onboarding
                 // Create user subscription record synchronously (not in background)
                 // This ensures display name is available immediately
                 // Use ensureUserSubscriptionRecord with names to handle RLS properly
@@ -249,11 +301,28 @@ struct SignUpView: View {
         } catch {
             // Track sign-up failure
             AnalyticsService.shared.track("sign_up_failed", properties: [
-                "error": error.localizedDescription
+                "error": error.localizedDescription,
+                "sign_up_method": "email"
             ])
             
-            isLoggedIn = false
-            message = "Sign-up failed: \(error.localizedDescription)"
+            // Check if this is a duplicate email error
+            let errorMessage = error.localizedDescription.lowercased()
+            let isDuplicateEmailError = errorMessage.contains("already registered") ||
+                                       errorMessage.contains("user already exists") ||
+                                       errorMessage.contains("email already") ||
+                                       errorMessage.contains("already been registered") ||
+                                       errorMessage.contains("user already registered")
+            
+            await MainActor.run {
+                isLoggedIn = false
+                if isDuplicateEmailError {
+                    isDuplicateEmail = true
+                    message = "An account with this email already exists"
+                } else {
+                    isDuplicateEmail = false
+                    message = "Sign-up failed: \(error.localizedDescription)"
+                }
+            }
         }
     }
     

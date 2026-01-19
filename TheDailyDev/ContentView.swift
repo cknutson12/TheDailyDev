@@ -88,6 +88,11 @@ struct ContentView: View {
                     
                     if showSignUp {
                         SignUpView(isLoggedIn: $isLoggedIn)
+                            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToLoginWithEmail"))) { _ in
+                                // Switch to login view when duplicate email detected
+                                // Email will be pre-filled via LoginView's notification handler
+                                showSignUp = false
+                            }
                     } else {
                         LoginView(isLoggedIn: $isLoggedIn)
                     }

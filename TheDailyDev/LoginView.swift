@@ -3,6 +3,7 @@ import Supabase
 
 struct LoginView: View {
     @Binding var isLoggedIn: Bool
+    var prefilledEmail: String? = nil
     @State private var email = ""
     @State private var password = ""
     @State private var message = ""
@@ -157,6 +158,18 @@ struct LoginView: View {
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PasswordResetLinkReceived"))) { _ in
                 // Dismiss forgot password view when password reset link is received
                 showingForgotPassword = false
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToLoginWithEmail"))) { notification in
+                // Pre-fill email when navigating from sign-up with duplicate email
+                if let emailToFill = notification.userInfo?["email"] as? String {
+                    email = emailToFill
+                }
+            }
+            .onAppear {
+                // Pre-fill email if provided via initializer
+                if let prefilledEmail = prefilledEmail, email.isEmpty {
+                    email = prefilledEmail
+                }
             }
         }
         .preferredColorScheme(.dark)

@@ -115,8 +115,20 @@ struct EmailVerificationView: View {
                 isResending = false
             }
         } catch {
+            // Check if this is a duplicate email error
+            let errorMessage = error.localizedDescription.lowercased()
+            let isDuplicateEmailError = errorMessage.contains("already registered") ||
+                                       errorMessage.contains("user already exists") ||
+                                       errorMessage.contains("email already") ||
+                                       errorMessage.contains("already been registered") ||
+                                       errorMessage.contains("user already registered")
+            
             await MainActor.run {
-                resendMessage = "Failed to resend email: \(error.localizedDescription)"
+                if isDuplicateEmailError {
+                    resendMessage = "This email is already registered. Please sign in instead."
+                } else {
+                    resendMessage = "Failed to resend email: \(error.localizedDescription)"
+                }
                 isResending = false
             }
         }

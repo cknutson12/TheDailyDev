@@ -30,9 +30,8 @@ CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user
 ON user_subscriptions(user_id);
 
 -- 5. Lookup by Stripe customer ID (webhook processing)
--- Used by: stripe-webhook Edge Function when processing Stripe events
-CREATE INDEX IF NOT EXISTS idx_user_subscriptions_stripe_customer 
-ON user_subscriptions(stripe_customer_id);
+-- Note: Stripe indexes removed - we now use RevenueCat
+-- The stripe_customer_id column has been removed from user_subscriptions table
 
 -- ============================================================================
 -- DAILY_CHALLENGES TABLE INDEXES
