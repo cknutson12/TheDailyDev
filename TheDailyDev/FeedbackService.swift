@@ -101,12 +101,12 @@ class FeedbackService {
                 .insert(feedbackData)
                 .execute()
             
-            print("✅ Feedback submitted successfully")
+            DebugLogger.log("✅ Feedback submitted successfully")
             
         } catch let error as FeedbackError {
             throw error
         } catch {
-            print("❌ Failed to submit feedback: \(error)")
+            DebugLogger.error("Failed to submit feedback: \(error)")
             throw FeedbackError.submissionFailed
         }
     }

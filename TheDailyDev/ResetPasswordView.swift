@@ -172,7 +172,7 @@ struct ResetPasswordView: View {
         do {
             // Check if there's an active session (established by the code exchange)
             _ = try await SupabaseManager.shared.client.auth.session
-            print("✅ Valid session found - code was already validated")
+            DebugLogger.log("✅ Valid session found - code was already validated")
             
             await MainActor.run {
                 tokenValid = true
@@ -180,16 +180,16 @@ struct ResetPasswordView: View {
             }
         } catch {
             // No session found - try to exchange the code one more time as fallback
-            print("⚠️ No active session found, attempting code exchange...")
+            DebugLogger.log("⚠️ No active session found, attempting code exchange...")
             do {
                 _ = try await SupabaseManager.shared.client.auth.exchangeCodeForSession(authCode: resetCode)
-                print("✅ Code exchange successful")
+                DebugLogger.log("✅ Code exchange successful")
                 await MainActor.run {
                     tokenValid = true
                     isValidatingToken = false
                 }
             } catch {
-                print("❌ Code validation failed: \(error)")
+                DebugLogger.error("Code validation failed: \(error)")
                 await MainActor.run {
                     tokenValid = false
                     isValidatingToken = false
@@ -226,12 +226,12 @@ struct ResetPasswordView: View {
             do {
                 _ = try await SupabaseManager.shared.client.auth.session
                 hasSession = true
-                print("✅ Using existing session for password update")
+                DebugLogger.log("✅ Using existing session for password update")
             } catch {
-                print("⚠️ No session found, attempting code exchange...")
+                DebugLogger.log("⚠️ No session found, attempting code exchange...")
                 _ = try await SupabaseManager.shared.client.auth.exchangeCodeForSession(authCode: resetCode)
                 hasSession = true
-                print("✅ Code exchange successful")
+                DebugLogger.log("✅ Code exchange successful")
             }
             
             guard hasSession else {

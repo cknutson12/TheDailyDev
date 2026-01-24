@@ -263,7 +263,7 @@ struct LoginView: View {
             ])
             
             message = "Failed to sign in with Google: \(error.localizedDescription)"
-            print("❌ OAuth error: \(error)")
+            DebugLogger.error("OAuth error: \(error)")
         }
     }
     
@@ -288,7 +288,7 @@ struct LoginView: View {
             }
         } catch {
             message = "Failed to sign in with GitHub: \(error.localizedDescription)"
-            print("❌ OAuth error: \(error)")
+            DebugLogger.error("OAuth error: \(error)")
         }
     }
 }

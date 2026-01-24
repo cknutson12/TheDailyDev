@@ -51,27 +51,27 @@ class RevenueCatSubscriptionProvider {
             
             // Check if user cancelled
             if userCancelled {
-                print("ℹ️ User cancelled purchase")
+                DebugLogger.log("ℹ️ User cancelled purchase")
                 return .cancelled
             }
             
             // Debug: Print all entitlements
-            print("🔍 Checking entitlements after purchase:")
-            print("   - Looking for entitlement ID: '\(Config.revenueCatEntitlementID)'")
-            print("   - Available entitlements: \(customerInfo.entitlements.all.keys.joined(separator: ", "))")
+            DebugLogger.log("🔍 Checking entitlements after purchase:")
+            DebugLogger.log("   - Looking for entitlement ID: '\(Config.revenueCatEntitlementID)'")
+            DebugLogger.log("   - Available entitlements: \(customerInfo.entitlements.all.keys.joined(separator: ", "))")
             
             // Verify entitlement is active
             var activeEntitlement = customerInfo.entitlements[Config.revenueCatEntitlementID]
             
             // Fallback: If specific entitlement not found, check for any active entitlement
             if activeEntitlement == nil || activeEntitlement?.isActive != true {
-                print("⚠️ Specific entitlement '\(Config.revenueCatEntitlementID)' not found or inactive")
-                print("   - Checking for any active entitlements...")
+                DebugLogger.log("⚠️ Specific entitlement '\(Config.revenueCatEntitlementID)' not found or inactive")
+                DebugLogger.log("   - Checking for any active entitlements...")
                 
                 // Find any active entitlement
                 for (key, entitlement) in customerInfo.entitlements.all {
                     if entitlement.isActive == true {
-                        print("   - Found active entitlement: '\(key)'")
+                        DebugLogger.log("   - Found active entitlement: '\(key)'")
                         activeEntitlement = entitlement
                         break
                     }
@@ -79,23 +79,23 @@ class RevenueCatSubscriptionProvider {
             }
             
             if let entitlement = activeEntitlement, entitlement.isActive == true {
-                print("✅ Purchase successful - entitlement active")
-                print("   - Entitlement ID: \(entitlement.identifier)")
-                print("   - Status: \(entitlement.willRenew == true ? "active" : "expired")")
+                DebugLogger.log("✅ Purchase successful - entitlement active")
+                DebugLogger.log("   - Entitlement ID: \(entitlement.identifier)")
+                DebugLogger.log("   - Status: \(entitlement.willRenew == true ? "active" : "expired")")
                 if let expirationDate = entitlement.expirationDate {
-                    print("   - Expires: \(expirationDate)")
+                    DebugLogger.log("   - Expires: \(expirationDate)")
                 }
                 return .success
             } else {
-                print("⚠️ Purchase completed but entitlement not active")
-                print("   - Entitlement exists: \(activeEntitlement != nil)")
-                print("   - Entitlement isActive: \(activeEntitlement?.isActive ?? false)")
+                DebugLogger.log("⚠️ Purchase completed but entitlement not active")
+                DebugLogger.log("   - Entitlement exists: \(activeEntitlement != nil)")
+                DebugLogger.log("   - Entitlement isActive: \(activeEntitlement?.isActive ?? false)")
                 if let activeEntitlement = activeEntitlement {
-                    print("   - Entitlement willRenew: \(activeEntitlement.willRenew)")
+                    DebugLogger.log("   - Entitlement willRenew: \(activeEntitlement.willRenew)")
                 }
                 
                 // In test mode, try refreshing after a delay
-                print("🔄 Waiting 1 second and refreshing customer info...")
+                DebugLogger.log("🔄 Waiting 1 second and refreshing customer info...")
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 
                 let refreshedInfo = try? await Purchases.shared.customerInfo()
@@ -107,7 +107,7 @@ class RevenueCatSubscriptionProvider {
                     if refreshedEntitlement == nil || refreshedEntitlement?.isActive != true {
                         for (key, entitlement) in refreshedInfo.entitlements.all {
                             if entitlement.isActive == true {
-                                print("   - Found active entitlement after refresh: '\(key)'")
+                                DebugLogger.log("   - Found active entitlement after refresh: '\(key)'")
                                 refreshedEntitlement = entitlement
                                 break
                             }
@@ -115,7 +115,7 @@ class RevenueCatSubscriptionProvider {
                     }
                     
                     if let entitlement = refreshedEntitlement, entitlement.isActive == true {
-                        print("✅ Entitlement active after refresh!")
+                        DebugLogger.log("✅ Entitlement active after refresh!")
                         return .success
                     }
                 }
@@ -123,7 +123,7 @@ class RevenueCatSubscriptionProvider {
                 return .failed(SubscriptionError.invalidResponse)
             }
         } catch {
-            print("❌ Purchase failed: \(error)")
+            DebugLogger.error("Purchase failed: \(error)")
             return .failed(error)
         }
     }
@@ -141,7 +141,7 @@ class RevenueCatSubscriptionProvider {
             if !hasActive {
                 for (key, entitlement) in customerInfo.entitlements.all {
                     if entitlement.isActive == true {
-                        print("⚠️ Using fallback entitlement check after restore - found active entitlement: \(key)")
+                        DebugLogger.log("⚠️ Using fallback entitlement check after restore - found active entitlement: \(key)")
                         hasActive = true
                         break
                     }
@@ -149,12 +149,12 @@ class RevenueCatSubscriptionProvider {
             }
             
             if hasActive {
-                print("✅ Purchases restored - entitlement active")
+                DebugLogger.log("✅ Purchases restored - entitlement active")
             } else {
-                print("⚠️ Purchases restored but no active entitlement")
+                DebugLogger.log("⚠️ Purchases restored but no active entitlement")
             }
         } catch {
-            print("❌ Restore purchases failed: \(error)")
+            DebugLogger.error("Restore purchases failed: \(error)")
             throw error
         }
     }
@@ -168,20 +168,20 @@ class RevenueCatSubscriptionProvider {
             // RevenueCat provides a management URL for Customer Center
             // This is configured in RevenueCat dashboard under Customer Center
             if let managementURL = customerInfo.managementURL {
-                print("✅ Using RevenueCat Customer Center URL")
+                DebugLogger.log("✅ Using RevenueCat Customer Center URL")
                 return managementURL
             }
             
             // Fallback: Open App Store subscription management
             // This works for all iOS subscriptions
             if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
-                print("⚠️ No Customer Center URL, using App Store management")
+                DebugLogger.log("⚠️ No Customer Center URL, using App Store management")
                 return url
             }
             
             throw SubscriptionError.invalidConfiguration
         } catch {
-            print("❌ Failed to get management URL: \(error)")
+            DebugLogger.error("Failed to get management URL: \(error)")
             throw error
         }
     }
@@ -213,14 +213,14 @@ class RevenueCatSubscriptionProvider {
             // Fallback: Check for any active entitlement
             for (_, entitlement) in customerInfo.entitlements.all {
                 if entitlement.isActive == true {
-                    print("⚠️ Using fallback entitlement check - found active entitlement: \(entitlement.identifier)")
+                    DebugLogger.log("⚠️ Using fallback entitlement check - found active entitlement: \(entitlement.identifier)")
                     return true
                 }
             }
             
             return false
         } catch {
-            print("❌ Failed to check subscription status: \(error)")
+            DebugLogger.error("Failed to check subscription status: \(error)")
             return false
         }
     }
@@ -238,7 +238,7 @@ class RevenueCatSubscriptionProvider {
             if entitlement == nil || entitlement?.isActive != true {
                 for (_, ent) in customerInfo.entitlements.all {
                     if ent.isActive == true {
-                        print("⚠️ Using fallback entitlement for status - found active entitlement: \(ent.identifier)")
+                        DebugLogger.log("⚠️ Using fallback entitlement for status - found active entitlement: \(ent.identifier)")
                         entitlement = ent
                         break
                     }
@@ -283,7 +283,7 @@ class RevenueCatSubscriptionProvider {
                 providerId: providerId
             )
         } catch {
-            print("❌ Failed to get subscription status: \(error)")
+            DebugLogger.error("Failed to get subscription status: \(error)")
             return nil
         }
     }
@@ -296,12 +296,12 @@ class RevenueCatSubscriptionProvider {
         let offerings = try await Purchases.shared.offerings()
         
         guard let currentOffering = offerings.current else {
-            print("❌ No current offering found in RevenueCat")
+            DebugLogger.error("No current offering found in RevenueCat")
             throw SubscriptionError.invalidConfiguration
         }
         
-        print("🔍 Looking for package with product ID: \(productId)")
-        print("   Available packages: \(currentOffering.availablePackages.map { $0.storeProduct.productIdentifier })")
+        DebugLogger.log("🔍 Looking for package with product ID: \(productId)")
+        DebugLogger.log("   Available packages: \(currentOffering.availablePackages.map { $0.storeProduct.productIdentifier })")
         
         // Find package with matching product ID
         let package = currentOffering.availablePackages.first { package in
@@ -309,12 +309,12 @@ class RevenueCatSubscriptionProvider {
         }
         
         if let package = package {
-            print("✅ Found package: \(package.identifier) for product: \(productId)")
+            DebugLogger.log("✅ Found package: \(package.identifier) for product: \(productId)")
             return package
         } else {
-            print("❌ No package found with product ID: \(productId)")
-            print("   Make sure the product ID matches what's configured in RevenueCat and App Store Connect")
-            print("   Available product IDs: \(currentOffering.availablePackages.map { $0.storeProduct.productIdentifier })")
+            DebugLogger.error("No package found with product ID: \(productId)")
+            DebugLogger.log("   Make sure the product ID matches what's configured in RevenueCat and App Store Connect")
+            DebugLogger.log("   Available product IDs: \(currentOffering.availablePackages.map { $0.storeProduct.productIdentifier })")
             return nil
         }
     }

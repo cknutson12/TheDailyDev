@@ -68,21 +68,22 @@ struct TheDailyDevApp: App {
     
     // MARK: - Handle Deep Links
     private func handleDeepLink(url: URL) async {
-        DebugLogger.log("🔗 Received deep link: \(url)")
+        let sanitizedURL = "\(url.scheme ?? "nil")://\(url.host ?? "nil")\(url.path)"
+        DebugLogger.log("🔗 Received deep link: \(sanitizedURL)")
         DebugLogger.log("   - scheme: \(url.scheme ?? "nil")")
         DebugLogger.log("   - host: \(url.host ?? "nil")")
         DebugLogger.log("   - path: \(url.path)")
         
         // Handle Supabase OAuth redirects
         if url.scheme == "com.supabase.thedailydev" && url.host == "oauth-callback" {
-            DebugLogger.log("🔐 OAuth callback received: \(url.absoluteString)")
+            DebugLogger.log("🔐 OAuth callback received")
             await AuthManager.shared.handleOAuthCallback(url: url)
             return
         }
         
         // Handle email confirmation
         if url.scheme == "thedailydev" && url.host == "email-confirm" {
-            DebugLogger.log("📧 Email confirmation received: \(url.absoluteString)")
+            DebugLogger.log("📧 Email confirmation received")
             
             // Extract code from query parameters
             // Supabase redirects with a 'code' parameter after verification
@@ -98,11 +99,11 @@ struct TheDailyDevApp: App {
             // First try 'code' parameter
             if let code = queryItems.first(where: { $0.name == "code" })?.value {
                 authCode = code
-                DebugLogger.log("📋 Extracted code: \(code.prefix(20))...")
+                DebugLogger.log("📋 Extracted code (length: \(code.count))")
             } else if let token = queryItems.first(where: { $0.name == "token" })?.value {
                 // If token is a UUID (not a PKCE token), treat it as a code
                 // PKCE tokens start with "pkce_", UUIDs are 36 chars with dashes
-                DebugLogger.log("📋 Found token parameter: \(token.prefix(20))... (length: \(token.count))")
+                DebugLogger.log("📋 Found token parameter (length: \(token.count))")
                 if !token.hasPrefix("pkce_") && token.count == 36 && token.contains("-") {
                     authCode = token
                     DebugLogger.log("✅ Token is a UUID - treating as code")
@@ -113,7 +114,7 @@ struct TheDailyDevApp: App {
                 DebugLogger.log("⚠️ No 'code' or 'token' parameter found in query items")
                 #if DEBUG
                 for item in queryItems {
-                    DebugLogger.log("   - \(item.name): \(item.value ?? "nil")")
+                    DebugLogger.log("   - \(item.name)")
                 }
                 #endif
             }
@@ -168,7 +169,7 @@ struct TheDailyDevApp: App {
         
         // Handle password reset
         if url.scheme == "thedailydev" && url.host == "password-reset" {
-            DebugLogger.log("🔑 Password reset received: \(url.absoluteString)")
+            DebugLogger.log("🔑 Password reset received")
             
             // Extract code from query parameters
             // Supabase redirects with a 'code' parameter, but HTML might pass it as 'token'
@@ -191,11 +192,11 @@ struct TheDailyDevApp: App {
             // First try 'code' parameter
             if let code = queryItems.first(where: { $0.name == "code" })?.value {
                 authCode = code
-                DebugLogger.log("📋 Extracted code: \(code.prefix(20))...")
+                DebugLogger.log("📋 Extracted code (length: \(code.count))")
             } else if let token = queryItems.first(where: { $0.name == "token" })?.value {
                 // If token is a UUID (not a PKCE token), treat it as a code
                 // PKCE tokens start with "pkce_", UUIDs are 36 chars with dashes
-                DebugLogger.log("📋 Found token parameter: \(token.prefix(20))... (length: \(token.count))")
+                DebugLogger.log("📋 Found token parameter (length: \(token.count))")
                 if !token.hasPrefix("pkce_") && token.count == 36 && token.contains("-") {
                     authCode = token
                     DebugLogger.log("✅ Token is a UUID - treating as code")
@@ -206,7 +207,7 @@ struct TheDailyDevApp: App {
                 DebugLogger.log("⚠️ No 'code' or 'token' parameter found in query items")
                 #if DEBUG
                 for item in queryItems {
-                    DebugLogger.log("   - \(item.name): \(item.value ?? "nil")")
+                    DebugLogger.log("   - \(item.name)")
                 }
                 #endif
             }

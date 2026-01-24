@@ -235,12 +235,12 @@ struct RevenueCatPaywallView: View {
             }
             
             // Debug: Print all entitlements to see what we have
-            print("🔍 Checking entitlements after purchase:")
-            print("   - Looking for entitlement ID: '\(Config.revenueCatEntitlementID)'")
-            print("   - Available entitlements: \(customerInfo.entitlements.all.keys.joined(separator: ", "))")
+            DebugLogger.log("🔍 Checking entitlements after purchase:")
+            DebugLogger.log("   - Looking for entitlement ID: '\(Config.revenueCatEntitlementID)'")
+            DebugLogger.log("   - Available entitlements: \(customerInfo.entitlements.all.keys.joined(separator: ", "))")
             
             for (key, entitlement) in customerInfo.entitlements.all {
-                print("   - Entitlement '\(key)': isActive=\(entitlement.isActive), willRenew=\(entitlement.willRenew)")
+                DebugLogger.log("   - Entitlement '\(key)': isActive=\(entitlement.isActive), willRenew=\(entitlement.willRenew)")
             }
             
             // Verify entitlement is active
@@ -248,13 +248,13 @@ struct RevenueCatPaywallView: View {
             
             // Fallback: If specific entitlement not found, check for any active entitlement
             if activeEntitlement == nil || activeEntitlement?.isActive != true {
-                print("⚠️ Specific entitlement '\(Config.revenueCatEntitlementID)' not found or inactive")
-                print("   - Checking for any active entitlements...")
+                DebugLogger.log("⚠️ Specific entitlement '\(Config.revenueCatEntitlementID)' not found or inactive")
+                DebugLogger.log("   - Checking for any active entitlements...")
                 
                 // Find any active entitlement
                 for (key, entitlement) in customerInfo.entitlements.all {
                     if entitlement.isActive == true {
-                        print("   - Found active entitlement: '\(key)'")
+                        DebugLogger.log("   - Found active entitlement: '\(key)'")
                         activeEntitlement = entitlement
                         break
                     }
@@ -262,9 +262,9 @@ struct RevenueCatPaywallView: View {
             }
             
             if let entitlement = activeEntitlement, entitlement.isActive == true {
-                print("✅ Purchase successful - entitlement active")
-                print("   - Entitlement ID: \(entitlement.identifier)")
-                print("   - Will renew: \(entitlement.willRenew)")
+                DebugLogger.log("✅ Purchase successful - entitlement active")
+                DebugLogger.log("   - Entitlement ID: \(entitlement.identifier)")
+                DebugLogger.log("   - Will renew: \(entitlement.willRenew)")
                 
                 // Track purchase successful
                 let price = package.storeProduct.localizedPriceString
@@ -297,21 +297,21 @@ struct RevenueCatPaywallView: View {
                 }
             } else {
                 // More detailed error logging
-                print("⚠️ Purchase completed but entitlement check failed:")
-                print("   - Entitlement exists: \(activeEntitlement != nil)")
+                DebugLogger.log("⚠️ Purchase completed but entitlement check failed:")
+                DebugLogger.log("   - Entitlement exists: \(activeEntitlement != nil)")
                 if let activeEntitlement = activeEntitlement {
-                    print("   - Entitlement isActive: \(activeEntitlement.isActive)")
-                    print("   - Entitlement willRenew: \(activeEntitlement.willRenew)")
-                    print("   - Product identifier: \(activeEntitlement.productIdentifier)")
+                    DebugLogger.log("   - Entitlement isActive: \(activeEntitlement.isActive)")
+                    DebugLogger.log("   - Entitlement willRenew: \(activeEntitlement.willRenew)")
+                    DebugLogger.log("   - Product identifier: \(activeEntitlement.productIdentifier)")
                 } else {
-                    print("   - Entitlement isActive: false")
-                    print("   - Entitlement willRenew: false")
-                    print("   - Product identifier: none")
+                    DebugLogger.log("   - Entitlement isActive: false")
+                    DebugLogger.log("   - Entitlement willRenew: false")
+                    DebugLogger.log("   - Product identifier: none")
                 }
                 
                 // In test mode, sometimes entitlements take a moment to activate
                 // Try refreshing customer info after a short delay
-                print("🔄 Waiting 1 second and refreshing customer info...")
+                DebugLogger.log("🔄 Waiting 1 second and refreshing customer info...")
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 
                 let refreshedInfo = try? await Purchases.shared.customerInfo()
@@ -323,7 +323,7 @@ struct RevenueCatPaywallView: View {
                     if refreshedEntitlement == nil || refreshedEntitlement?.isActive != true {
                         for (key, entitlement) in refreshedInfo.entitlements.all {
                             if entitlement.isActive == true {
-                                print("   - Found active entitlement after refresh: '\(key)'")
+                                DebugLogger.log("   - Found active entitlement after refresh: '\(key)'")
                                 refreshedEntitlement = entitlement
                                 break
                             }
@@ -331,19 +331,19 @@ struct RevenueCatPaywallView: View {
                     }
                     
                     if let entitlement = refreshedEntitlement, entitlement.isActive == true {
-                        print("✅ Entitlement active after refresh!")
+                        DebugLogger.log("✅ Entitlement active after refresh!")
                         _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)
                         await MainActor.run {
                             NotificationCenter.default.post(name: NSNotification.Name("SubscriptionSuccess"), object: nil)
                             dismiss()
                         }
                     } else {
-                        print("❌ Entitlement still not active after refresh")
-                        print("   - Available entitlements: \(refreshedInfo.entitlements.all.keys.joined(separator: ", "))")
+                        DebugLogger.error("Entitlement still not active after refresh")
+                        DebugLogger.log("   - Available entitlements: \(refreshedInfo.entitlements.all.keys.joined(separator: ", "))")
                         throw SubscriptionError.invalidResponse
                     }
                 } else {
-                    print("❌ Failed to refresh customer info")
+                    DebugLogger.error("Failed to refresh customer info")
                     throw SubscriptionError.invalidResponse
                 }
             }
@@ -368,7 +368,7 @@ struct RevenueCatPaywallView: View {
             let customerInfo = try await Purchases.shared.restorePurchases()
             
             if customerInfo.entitlements[Config.revenueCatEntitlementID]?.isActive == true {
-                print("✅ Purchases restored - entitlement active")
+                DebugLogger.log("✅ Purchases restored - entitlement active")
                 
                 // Refresh subscription status
                 _ = await subscriptionService.fetchSubscriptionStatus(forceRefresh: true)

@@ -130,10 +130,10 @@ struct ForgotPasswordView: View {
                 isLoading = false
             }
         } catch {
-            print("❌ Password reset error: \(error)")
+            DebugLogger.error("Password reset error: \(error)")
             // Check if it's a specific Supabase error
             if let errorDescription = (error as NSError).userInfo[NSLocalizedDescriptionKey] as? String {
-                print("❌ Error description: \(errorDescription)")
+                DebugLogger.error("Error description: \(errorDescription)")
             }
             await MainActor.run {
                 var errorMessage = "Failed to send reset link: \(error.localizedDescription)"

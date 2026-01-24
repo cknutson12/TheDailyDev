@@ -43,21 +43,21 @@ class QuestionService: ObservableObject {
         cachedStreak = nil
         streakFetchTime = nil
         streakCachedDate = nil
-        print("🔄 Progress cache invalidated - stats will refresh")
+        DebugLogger.log("🔄 Progress cache invalidated - stats will refresh")
     }
     
     /// Invalidate question cache - call when you want to force refresh today's question
     func invalidateQuestionCache() {
         todaysQuestion = nil
         errorMessage = nil
-        print("🔄 Question cache invalidated - will fetch fresh question")
+        DebugLogger.log("🔄 Question cache invalidated - will fetch fresh question")
     }
     
     /// Invalidate display name cache - call when user name is updated
     func invalidateDisplayNameCache() {
         cachedDisplayName = nil
         displayNameFetchTime = nil
-        print("🔄 Display name cache invalidated - will fetch fresh name")
+        DebugLogger.log("🔄 Display name cache invalidated - will fetch fresh name")
     }
     
     /// Clear ALL caches - call on sign out to ensure no user data persists
@@ -92,7 +92,7 @@ class QuestionService: ObservableObject {
         currentHasAnsweredTodayTask?.cancel()
         currentHasAnsweredTodayTask = nil
         
-        print("🧹 All QuestionService caches cleared")
+        DebugLogger.log("🧹 All QuestionService caches cleared")
     }
     
     // MARK: - Fetch Today's Question
@@ -133,7 +133,7 @@ class QuestionService: ObservableObject {
     func hasAnsweredAnyQuestion() async -> Bool {
         // Once true, always true - cache indefinitely
         if let cached = cachedHasAnsweredAny, cached == true {
-            print("✅ Using cached 'has answered any' (value: true)")
+            DebugLogger.log("✅ Using cached 'has answered any' (value: true)")
             return true
         }
         
@@ -154,11 +154,11 @@ class QuestionService: ObservableObject {
             
             // Cache the result (especially if true)
             cachedHasAnsweredAny = hasAnswered
-            print("✅ Checked if user has answered any: \(hasAnswered)")
+            DebugLogger.log("✅ Checked if user has answered any: \(hasAnswered)")
             
             return hasAnswered
         } catch {
-            print("❌ Failed to check if user has answered: \(error)")
+            DebugLogger.error("Failed to check if user has answered: \(error)")
             return false
         }
     }
@@ -176,10 +176,10 @@ class QuestionService: ObservableObject {
                 .execute()
                 .value
             
-            print("✅ Fetched \(response.count) daily challenges")
+            DebugLogger.log("✅ Fetched \(response.count) daily challenges")
             return response
         } catch {
-            print("❌ Failed to fetch daily challenges: \(error)")
+            DebugLogger.error("Failed to fetch daily challenges: \(error)")
             return []
         }
     }
@@ -192,11 +192,11 @@ class QuestionService: ObservableObject {
            let lastFetch = progressHistoryFetchTime,
            Date().timeIntervalSince(lastFetch) < progressHistoryCacheTimeout {
             let age = Int(Date().timeIntervalSince(lastFetch))
-            print("✅ Using cached progress history (age: \(age)s, \(cached.count) records)")
+            DebugLogger.log("✅ Using cached progress history (age: \(age)s, \(cached.count) records)")
             return cached
         }
         
-        print("🔄 Fetching fresh progress history...")
+        DebugLogger.log("🔄 Fetching fresh progress history...")
         
         do {
             // Get the current authenticated user
@@ -214,16 +214,16 @@ class QuestionService: ObservableObject {
             // Cache the result
             cachedProgressHistory = response
             progressHistoryFetchTime = Date()
-            print("✅ Progress history cached (\(response.count) records)")
+            DebugLogger.log("✅ Progress history cached (\(response.count) records)")
             
             return response
         } catch {
             let nsError = error as NSError
             if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
-                print("ℹ️ Progress fetch cancelled (likely superseded by a newer request).")
+                DebugLogger.log("ℹ️ Progress fetch cancelled (likely superseded by a newer request).")
                 return cachedProgressHistory ?? []
             }
-            print("❌ Failed to fetch user progress: \(error)")
+            DebugLogger.error("Failed to fetch user progress: \(error)")
             return cachedProgressHistory ?? [] // Return cached data if available
         }
     }
@@ -235,7 +235,7 @@ class QuestionService: ObservableObject {
             let session = try await SupabaseManager.shared.client.auth.session
             let userId = session.user.id
             
-            print("🔐 Authenticated user ID: \(userId)")
+            DebugLogger.log("🔐 Authenticated user ID retrieved")
             
             // Check if this is the first question answered
             let hasAnsweredAny = await hasAnsweredAnyQuestion()
@@ -257,7 +257,7 @@ class QuestionService: ObservableObject {
                 .insert(progress)
                 .execute()
                 
-            print("✅ Progress saved successfully")
+            DebugLogger.log("✅ Progress saved successfully")
             
             // Track question answered
             AnalyticsService.shared.track("question_answered", properties: [
@@ -308,7 +308,7 @@ class QuestionService: ObservableObject {
                 AnalyticsService.shared.setUserProperty("total_questions_answered", value: totalAnswered)
             }
         } catch {
-            print(" Failed to save progress: \(error)")
+            DebugLogger.error("Failed to save progress: \(error)")
         }
     }
     
@@ -319,8 +319,8 @@ class QuestionService: ObservableObject {
             let session = try await SupabaseManager.shared.client.auth.session
             let userId = session.user.id
             
-            print("🔐 Authenticated user ID: \(userId)")
-            print("📝 Submitting matching answer with \(matches.count) matches")
+            DebugLogger.log("🔐 Authenticated user ID retrieved")
+            DebugLogger.log("📝 Submitting matching answer with \(matches.count) matches")
             
             // Check if this is the first question answered
             let hasAnsweredAny = await hasAnsweredAnyQuestion()
@@ -346,7 +346,7 @@ class QuestionService: ObservableObject {
                 .insert(progress)
                 .execute()
                 
-            print("✅ Matching answer saved successfully")
+            DebugLogger.log("✅ Matching answer saved successfully")
             
             // Track question answered (same as submitAnswer)
             AnalyticsService.shared.track("question_answered", properties: [
@@ -393,7 +393,7 @@ class QuestionService: ObservableObject {
                 AnalyticsService.shared.setUserProperty("total_questions_answered", value: totalAnswered)
             }
         } catch {
-            print("❌ Failed to save matching answer: \(error)")
+            DebugLogger.error("Failed to save matching answer: \(error)")
         }
     }
     
@@ -403,8 +403,8 @@ class QuestionService: ObservableObject {
             let session = try await SupabaseManager.shared.client.auth.session
             let userId = session.user.id
             
-            print("🔐 Authenticated user ID: \(userId)")
-            print("📝 Submitting ordering answer with \(orderIds.count) items")
+            DebugLogger.log("🔐 Authenticated user ID retrieved")
+            DebugLogger.log("📝 Submitting ordering answer with \(orderIds.count) items")
             
             // Check if this is the first question answered
             let hasAnsweredAny = await hasAnsweredAnyQuestion()
@@ -429,7 +429,7 @@ class QuestionService: ObservableObject {
                 .insert(progress)
                 .execute()
             
-            print("✅ Ordering answer saved successfully")
+            DebugLogger.log("✅ Ordering answer saved successfully")
             
             // Track question answered (same as submitAnswer)
             AnalyticsService.shared.track("question_answered", properties: [
@@ -476,7 +476,7 @@ class QuestionService: ObservableObject {
                 AnalyticsService.shared.setUserProperty("total_questions_answered", value: totalAnswered)
             }
         } catch {
-            print("❌ Failed to save ordering answer: \(error)")
+            DebugLogger.error("Failed to save ordering answer: \(error)")
         }
     }
     
@@ -486,7 +486,7 @@ class QuestionService: ObservableObject {
             let session = try await SupabaseManager.shared.client.auth.session
             return session.user
         } catch {
-            print("❌ Failed to get current user: \(error)")
+            DebugLogger.error("Failed to get current user: \(error)")
             return nil
         }
     }
@@ -498,11 +498,11 @@ class QuestionService: ObservableObject {
            let lastFetch = displayNameFetchTime,
            Date().timeIntervalSince(lastFetch) < displayNameCacheTimeout {
             let age = Int(Date().timeIntervalSince(lastFetch))
-            print("✅ Using cached display name (age: \(age)s)")
+            DebugLogger.log("✅ Using cached display name (age: \(age)s)")
             return cached
         }
         
-        print("🔄 Fetching fresh display name...")
+        DebugLogger.log("🔄 Fetching fresh display name...")
         
         do {
             let session = try await SupabaseManager.shared.client.auth.session
@@ -531,12 +531,12 @@ class QuestionService: ObservableObject {
             // Cache the result
             cachedDisplayName = displayName
             displayNameFetchTime = Date()
-            print("✅ Display name cached: \(displayName)")
+            DebugLogger.log("✅ Display name cached")
             
             return displayName
             
         } catch {
-            print("❌ Failed to get user display name: \(error)")
+            DebugLogger.error("Failed to get user display name: \(error)")
             return "User"
         }
     }
@@ -549,14 +549,14 @@ class QuestionService: ObservableObject {
         if let cached = cachedStreak,
            let cachedDate = streakCachedDate,
            cachedDate == todayDateString {
-            print("✅ Using cached streak (value: \(cached), cached today)")
+            DebugLogger.log("✅ Using cached streak (value: \(cached), cached today)")
             return cached
         }
         
         if let oldDate = streakCachedDate, oldDate != todayDateString {
-            print("🔄 Date changed (\(oldDate) → \(todayDateString)) - recalculating streak...")
+            DebugLogger.log("🔄 Date changed (\(oldDate) → \(todayDateString)) - recalculating streak...")
         } else {
-            print("🔄 Calculating fresh streak...")
+            DebugLogger.log("🔄 Calculating fresh streak...")
         }
         
         // Fetch both progress history and daily challenges
@@ -647,7 +647,7 @@ class QuestionService: ObservableObject {
         cachedStreak = streak
         streakFetchTime = Date()
         streakCachedDate = todayDateString
-        print("✅ Streak calculated and cached: \(streak) (valid until midnight)")
+        DebugLogger.log("✅ Streak calculated and cached: \(streak) (valid until midnight)")
         
         return streak
     }
@@ -698,19 +698,19 @@ class QuestionService: ObservableObject {
         if let cached = cachedHasAnsweredToday,
            let lastChecked = lastCheckedDate,
            lastChecked == todayDateString {
-            print("✅ Using cached 'has answered today' (value: \(cached))")
+            DebugLogger.log("✅ Using cached 'has answered today' (value: \(cached))")
             return cached
         }
         
         // If there's already a request in progress, wait for it instead of starting a new one
         if let existingTask = currentHasAnsweredTodayTask {
-            print("ℹ️ 'Has answered today' check already in progress, waiting for existing request...")
+            DebugLogger.log("ℹ️ 'Has answered today' check already in progress, waiting for existing request...")
             return await existingTask.value
         }
         
         // Create a new task
         let checkTask = Task<Bool, Never> {
-            print("🔄 Checking if answered today (\(todayDateString))...")
+            DebugLogger.log("🔄 Checking if answered today (\(todayDateString))...")
             
             do {
             // Get today's question ID
@@ -744,7 +744,7 @@ class QuestionService: ObservableObject {
                 cachedHasAnsweredToday = hasAnswered
                 lastCheckedDate = todayDateString
                 hasAnsweredTodayFetchTime = Date()
-                print("✅ Answered today check cached: \(hasAnswered)")
+                DebugLogger.log("✅ Answered today check cached: \(hasAnswered)")
                 
                 // Clear task reference when done
                 await MainActor.run {
@@ -756,14 +756,14 @@ class QuestionService: ObservableObject {
                 let nsError = error as NSError
                 // Don't log cancelled errors as failures - they're expected when requests are deduplicated
                 if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
-                    print("ℹ️ 'Has answered today' check cancelled (likely superseded by a newer request)")
+                    DebugLogger.log("ℹ️ 'Has answered today' check cancelled (likely superseded by a newer request)")
                     // Return cached value if available, otherwise false
                     await MainActor.run {
                         self.currentHasAnsweredTodayTask = nil
                     }
                     return cachedHasAnsweredToday ?? false
                 } else {
-                    print("❌ Failed to check if answered today: \(error)")
+                    DebugLogger.error("Failed to check if answered today: \(error)")
                 }
                 await MainActor.run {
                     self.currentHasAnsweredTodayTask = nil
@@ -793,7 +793,7 @@ class QuestionService: ObservableObject {
             let session = try await SupabaseManager.shared.client.auth.session
             return session.user.id
         } catch {
-            print("No authenticated user found: \(error)")
+            DebugLogger.error("No authenticated user found: \(error)")
             return nil
         }
     }

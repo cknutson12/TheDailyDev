@@ -33,7 +33,7 @@ class SubscriptionService: ObservableObject {
     /// Force next fetch to bypass cache - call after critical actions like purchase/answer
     func invalidateCache() {
         lastFetchTime = nil
-        print("🔄 Cache invalidated - next fetch will be fresh")
+        DebugLogger.log("🔄 Cache invalidated - next fetch will be fresh")
     }
     
     /// Clear ALL caches and reset state - call on sign out to ensure no user data persists
@@ -56,7 +56,7 @@ class SubscriptionService: ObservableObject {
         currentFetchTask?.cancel()
         currentFetchTask = nil
         
-        print("🧹 All SubscriptionService caches cleared")
+        DebugLogger.log("🧹 All SubscriptionService caches cleared")
     }
     
     // MARK: - Get RevenueCat Packages
@@ -170,7 +170,7 @@ class SubscriptionService: ObservableObject {
                     .insert(insertData)
                     .execute()
                 
-                print("✅ Created new user_subscriptions record for user \(userId)")
+                DebugLogger.log("✅ Created new user_subscriptions record")
             } else {
                 // Record exists - ONLY update name fields if they're missing
                 // DO NOT touch subscription status or RevenueCat-related fields!
@@ -194,7 +194,7 @@ class SubscriptionService: ObservableObject {
                                 .eq("user_id", value: userId)
                                 .execute()
                             
-                            print("✅ Updated name for user_subscriptions record for user \(userId)")
+                            DebugLogger.log("✅ Updated name for user_subscriptions record")
                         }
                     }
                 }
@@ -222,19 +222,19 @@ class SubscriptionService: ObservableObject {
            let lastFetch = lastFetchTime,
            let cached = currentSubscription,
            Date().timeIntervalSince(lastFetch) < cacheTimeout {
-            print("✅ Using cached subscription (age: \(Int(Date().timeIntervalSince(lastFetch)))s)")
+            DebugLogger.log("✅ Using cached subscription (age: \(Int(Date().timeIntervalSince(lastFetch)))s)")
             return cached
         }
         
         // If there's already a fetch in progress, wait for it instead of starting a new one
         if let existingTask = currentFetchTask {
-            print("ℹ️ Subscription fetch already in progress, waiting for existing request...")
+            DebugLogger.log("ℹ️ Subscription fetch already in progress, waiting for existing request...")
             return await existingTask.value
         }
         
         // Create a new fetch task
         let fetchTask = Task<UserSubscription?, Never> {
-            print("🔄 Fetching fresh subscription status...")
+            DebugLogger.log("🔄 Fetching fresh subscription status...")
             
             // Sync status from RevenueCat first (with deduplication)
             await syncRevenueCatStatus()
@@ -293,13 +293,13 @@ class SubscriptionService: ObservableObject {
                     }
                 }
                 
-                print("✅ Subscription status updated: \(subscriptions.first?.status ?? "none")")
+                DebugLogger.log("✅ Subscription status updated: \(subscriptions.first?.status ?? "none")")
                 
                 return subscriptions.first
             } catch {
                 let nsError = error as NSError
                 if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
-                    print("ℹ️ Subscription fetch cancelled (likely superseded by a newer request).")
+                    DebugLogger.log("ℹ️ Subscription fetch cancelled (likely superseded by a newer request).")
                     await MainActor.run {
                         self.currentFetchTask = nil // Clear task reference
                     }
@@ -311,7 +311,7 @@ class SubscriptionService: ObservableObject {
                     self.errorMessage = "Failed to fetch subscription: \(error.localizedDescription)"
                     self.currentFetchTask = nil // Clear task reference
                 }
-                print("❌ Failed to fetch subscription status: \(error)")
+                DebugLogger.error("Failed to fetch subscription status: \(error)")
                 return nil
             }
         }
@@ -331,7 +331,7 @@ class SubscriptionService: ObservableObject {
     private func syncRevenueCatStatus() async {
         // If there's already a sync in progress, wait for it instead of starting a new one
         if let existingTask = currentSyncTask {
-            print("ℹ️ RevenueCat sync already in progress, waiting for existing sync...")
+            DebugLogger.log("ℹ️ RevenueCat sync already in progress, waiting for existing sync...")
             await existingTask.value
             return
         }
@@ -395,7 +395,7 @@ class SubscriptionService: ObservableObject {
             // Transaction IDs should be set by the RevenueCat webhook, which is the authoritative source
             // We don't set them here to avoid incorrect values (like using entitlement.identifier)
             // The webhook will populate revenuecat_subscription_id and original_transaction_id correctly
-            print("ℹ️ Transaction IDs are managed by RevenueCat webhook, not app-side sync")
+            DebugLogger.log("ℹ️ Transaction IDs are managed by RevenueCat webhook, not app-side sync")
             
             // Upsert to database
             _ = try await SupabaseManager.shared.client
@@ -403,7 +403,7 @@ class SubscriptionService: ObservableObject {
                 .upsert(upsertData, onConflict: "user_id")
                 .execute()
             
-                print("✅ Synced RevenueCat status to database")
+                DebugLogger.log("✅ Synced RevenueCat status to database")
             } catch let error as PostgrestError {
                 // Handle foreign key constraint errors (user deleted from auth.users but session still exists)
                 if error.code == "23503" {
@@ -417,9 +417,9 @@ class SubscriptionService: ObservableObject {
                 let nsError = error as NSError
                 // Don't log cancelled errors as failures - they're expected when requests are deduplicated
                 if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
-                    print("ℹ️ RevenueCat sync cancelled (likely superseded by a newer request)")
+                    DebugLogger.log("ℹ️ RevenueCat sync cancelled (likely superseded by a newer request)")
                 } else {
-                    print("⚠️ Failed to sync RevenueCat status: \(error)")
+                    DebugLogger.error("Failed to sync RevenueCat status: \(error)")
                 }
                 // Don't throw - this is a background sync
             }

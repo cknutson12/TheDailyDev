@@ -66,7 +66,7 @@ class AnalyticsService {
     func setUserID(_ userId: String) {
         currentUserId = userId
         PostHogSDK.shared.identify(userId)
-        DebugLogger.log("✅ Analytics user ID set: \(userId)")
+        DebugLogger.log("✅ Analytics user ID set")
     }
     
     /// Clear user ID on sign-out
@@ -112,7 +112,7 @@ class AnalyticsService {
         // Get existing user properties and merge
         // Note: PostHog will merge properties automatically, but we batch to reduce events
         PostHogSDK.shared.identify(distinctId, userProperties: [key: value])
-        DebugLogger.log("📊 Set user property: \(key) = \(value)")
+        DebugLogger.log("📊 Set user property: \(key)")
     }
     
     /// Set multiple user properties at once

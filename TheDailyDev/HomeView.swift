@@ -256,7 +256,7 @@ struct HomeView: View {
                     self.canAccessQuestions = canAccess
                     self.hasAnsweredToday = answered
                 }
-                print("✅ Subscription success notification received - UI refreshed")
+                DebugLogger.log("✅ Subscription success notification received - UI refreshed")
             }
         }
         .onDisappear {
@@ -495,7 +495,7 @@ struct HomeView: View {
     
     // MARK: - Refresh Data (Pull-to-Refresh)
     private func refreshData() async {
-        print("🔄 Manual refresh triggered")
+        DebugLogger.log("🔄 Manual refresh triggered")
         
         // Invalidate question cache to force fresh fetch
         questionService.invalidateQuestionCache()
@@ -515,7 +515,7 @@ struct HomeView: View {
             self.hasAnsweredToday = answered
         }
         
-        print("✅ Manual refresh complete")
+        DebugLogger.log("✅ Manual refresh complete")
     }
     
     private func loadInitialData() async {

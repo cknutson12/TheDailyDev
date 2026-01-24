@@ -222,7 +222,7 @@ struct SubscriptionDetailsView: View {
                 }
             }
         } catch {
-            print("⚠️ Failed to load subscription price from RevenueCat: \(error)")
+            DebugLogger.error("Failed to load subscription price from RevenueCat: \(error)")
         }
     }
     

@@ -111,7 +111,7 @@ struct OnboardingView: View {
 struct OnboardingView_Previews: PreviewProvider {
     static var previews: some View {
         OnboardingView(onContinue: {
-            print("Get Started tapped")
+            DebugLogger.log("Get Started tapped")
         })
     }
 }

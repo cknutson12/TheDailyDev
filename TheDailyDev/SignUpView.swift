@@ -435,7 +435,7 @@ struct SignUpView: View {
             await MainActor.run {
                 message = "Failed to sign in with Google: \(error.localizedDescription)"
             }
-            print("❌ OAuth error: \(error)")
+            DebugLogger.error("OAuth error: \(error)")
         }
     }
     

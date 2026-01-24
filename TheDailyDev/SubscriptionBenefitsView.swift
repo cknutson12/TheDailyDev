@@ -46,7 +46,7 @@ struct SubscriptionBenefitsView: View {
 struct SubscriptionBenefitsView_Previews: PreviewProvider {
     static var previews: some View {
         SubscriptionBenefitsView(
-            onSkip: { print("Skip tapped") }
+            onSkip: { DebugLogger.log("Skip tapped") }
         )
     }
 }

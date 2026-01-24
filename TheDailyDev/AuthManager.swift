@@ -122,7 +122,7 @@ class AuthManager: ObservableObject {
                 isCheckingAuth = false
             }
         } catch {
-            print("❌ Failed to establish OAuth session: \(error)")
+            DebugLogger.error("Failed to establish OAuth session: \(error)")
             await MainActor.run {
                 isAuthenticated = false
                 isCheckingAuth = false
@@ -139,11 +139,11 @@ class AuthManager: ObservableObject {
             
             // Link the RevenueCat customer to this user ID
             let (_, created) = try await Purchases.shared.logIn(userId)
-            print("✅ RevenueCat user ID set: \(userId)")
+            DebugLogger.log("✅ RevenueCat user ID set")
             if created {
-                print("   - New RevenueCat customer created")
+                DebugLogger.log("   - New RevenueCat customer created")
             } else {
-                print("   - Existing RevenueCat customer linked")
+                DebugLogger.log("   - Existing RevenueCat customer linked")
             }
             
             // Immediately update the database with the RevenueCat user ID
@@ -163,19 +163,18 @@ class AuthManager: ObservableObject {
                 "updated_at": dateFormatter.string(from: Date())
             ]
             
-            let updateResult = try await SupabaseManager.shared.client
+            _ = try await SupabaseManager.shared.client
                 .from("user_subscriptions")
                 .update(updateData)
                 .eq("user_id", value: userId)
                 .execute()
             
-            print("✅ Updated database with RevenueCat user ID: \(revenueCatUserId)")
-            print("   - Update result: \(updateResult)")
+            DebugLogger.log("✅ Updated database with RevenueCat user ID")
             
             // Also sync the full subscription status
             _ = await SubscriptionService.shared.fetchSubscriptionStatus(forceRefresh: true)
         } catch {
-            print("⚠️ Failed to set RevenueCat user ID: \(error)")
+            DebugLogger.error("Failed to set RevenueCat user ID: \(error)")
         }
     }
 }

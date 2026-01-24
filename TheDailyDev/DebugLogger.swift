@@ -24,9 +24,11 @@ struct DebugLogger {
         #endif
     }
     
-    /// Always print (for critical errors that should be logged in production)
+    /// Print errors only in DEBUG builds to avoid leaking sensitive data
     static func error(_ message: String) {
+        #if DEBUG
         print("❌ ERROR: \(message)")
+        #endif
     }
     
     /// Always print (for important info that should be logged in production)

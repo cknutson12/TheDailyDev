@@ -276,7 +276,7 @@ struct ProfileView: View {
     
     // MARK: - Refresh Profile Data (Pull-to-Refresh)
     private func refreshProfileData() async {
-        print("🔄 Profile manual refresh triggered")
+        DebugLogger.log("🔄 Profile manual refresh triggered")
         // Force refresh both progress history and daily challenges
         let history = await QuestionService.shared.fetchUserProgressHistory(forceRefresh: true)
         let challenges = await QuestionService.shared.fetchAllDailyChallenges(forceRefresh: true)
@@ -299,7 +299,7 @@ struct ProfileView: View {
         // Reload all data
         await loadUserData()
         
-        print("✅ Profile refresh complete")
+        DebugLogger.log("✅ Profile refresh complete")
     }
     
 }
