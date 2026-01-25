@@ -54,8 +54,8 @@ struct DropZoneView: View {
                         Spacer()
                         
                         Button(action: onRemove) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(Theme.Colors.stateIncorrect)
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundColor(Color.theme.textSecondary)
                                 .font(.title3)
                         }
                     }

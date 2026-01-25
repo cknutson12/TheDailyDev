@@ -13,6 +13,7 @@ struct UserSubscription: Codable, Identifiable {
     let userId: String
     let firstName: String?
     let lastName: String?
+    let timezone: String?
     // RevenueCat fields
     let revenueCatUserId: String?
     let revenueCatSubscriptionId: String?
@@ -30,6 +31,7 @@ struct UserSubscription: Codable, Identifiable {
         case userId = "user_id"
         case firstName = "first_name"
         case lastName = "last_name"
+        case timezone
         case revenueCatUserId = "revenuecat_user_id"
         case revenueCatSubscriptionId = "revenuecat_subscription_id"
         case entitlementStatus = "entitlement_status"

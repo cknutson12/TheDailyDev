@@ -3,15 +3,22 @@ import SwiftUI
 struct MatchingQuestionView: View {
     let question: Question
     let onComplete: (() -> Void)?
+    let submitHandler: ((Question, [String: String], Bool, Int) async -> Void)?
     
     @State private var matches: [String: String] = [:] // targetId: sourceId
     @State private var showResult = false
     @State private var isCorrect = false
     @State private var timeStarted = Date()
     
-    init(question: Question, challengeDate: Date? = nil, onComplete: (() -> Void)? = nil) {
+    init(
+        question: Question,
+        challengeDate: Date? = nil,
+        onComplete: (() -> Void)? = nil,
+        submitHandler: ((Question, [String: String], Bool, Int) async -> Void)? = nil
+    ) {
         self.question = question
         self.onComplete = onComplete
+        self.submitHandler = submitHandler
         // challengeDate parameter kept for compatibility but not used
     }
     
@@ -85,18 +92,6 @@ struct MatchingQuestionView: View {
                             )
                             .cornerRadius(8)
                     }
-                    
-                    Text("Level \(question.difficultyLevel)")
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Theme.Colors.surface)
-                        .foregroundColor(.white)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Theme.Colors.border, lineWidth: 1)
-                        )
-                        .cornerRadius(8)
                 }
                 
                 // Instructions
@@ -283,17 +278,19 @@ struct MatchingQuestionView: View {
         // Save progress to database
         let timeTaken = Int(Date().timeIntervalSince(timeStarted))
         Task {
-            await QuestionService.shared.submitMatchingAnswer(
-                questionId: question.id,
-                matches: matches,
-                isCorrect: isCorrect,
-                timeTaken: timeTaken
-            )
-            
-            // Call completion callback after delay to allow reading result
-            DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) {
-                onComplete?()
+            if let submitHandler = submitHandler {
+                await submitHandler(question, matches, isCorrect, timeTaken)
+            } else {
+                await QuestionService.shared.submitMatchingAnswer(
+                    questionId: question.id,
+                    matches: matches,
+                    isCorrect: isCorrect,
+                    timeTaken: timeTaken
+                )
             }
+            
+            // Call completion callback immediately for manual navigation
+            onComplete?()
         }
     }
 }

@@ -307,6 +307,7 @@ struct InfoBox: View {
             userId: "123",
             firstName: "Test",
             lastName: "User",
+            timezone: "America/Los_Angeles",
             revenueCatUserId: nil,
             revenueCatSubscriptionId: nil,
             entitlementStatus: nil,

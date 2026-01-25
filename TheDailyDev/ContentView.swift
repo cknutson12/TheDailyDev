@@ -5,7 +5,13 @@ import UIKit
 struct ContentView: View {
     @State private var isLoggedIn = false
     @State private var showSignUp = false
+    @State private var showAssessmentFlow = true
     @StateObject private var authManager = AuthManager.shared
+    @StateObject private var assessmentStore = InitialAssessmentStore.shared
+    
+    init() {
+        _showAssessmentFlow = State(initialValue: !InitialAssessmentStore.shared.hasCompletedInitialAssessment)
+    }
 
     var body: some View {
         NavigationStack {
@@ -51,7 +57,17 @@ struct ContentView: View {
                     }
                 }
             } else if authManager.isAuthenticated || isLoggedIn {
-                HomeView(isLoggedIn: $isLoggedIn)
+                if showAssessmentFlow {
+                    InitialAssessmentFlowView(isAuthenticated: true) { action in
+                        handleAssessmentFinish(action)
+                    }
+                } else {
+                    HomeView(isLoggedIn: $isLoggedIn)
+                }
+            } else if showAssessmentFlow {
+                InitialAssessmentFlowView(isAuthenticated: false) { action in
+                    handleAssessmentFinish(action)
+                }
             } else {
                 VStack(spacing: 20) {
                     Text("The Daily Dev")
@@ -84,7 +100,18 @@ struct ContentView: View {
                         .shadow(color: Theme.Colors.accentGreen.opacity(0.4), radius: 12, x: 0, y: 8)
                         .shadow(color: Color.black.opacity(0.85), radius: 20, x: 0, y: 18)
                         .padding(.top, 30)
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 8)
+                    
+                    if assessmentStore.hasCompletedInitialAssessment {
+                        Text("Create an account to save your results and track progress")
+                            .font(.subheadline)
+                            .foregroundColor(Color.theme.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                            .padding(.bottom, 12)
+                    } else {
+                        Spacer().frame(height: 8)
+                    }
                     
                     if showSignUp {
                         SignUpView(isLoggedIn: $isLoggedIn)
@@ -125,10 +152,14 @@ struct ContentView: View {
                 await authManager.setRevenueCatUserID()
                 // Ensure user_subscriptions record exists for OAuth users
                 await SubscriptionService.shared.ensureUserSubscriptionRecord()
+                await PushNotificationManager.shared.requestAuthorizationAndRegister()
+                await PushNotificationManager.shared.syncPendingTokenIfNeeded()
                 // Force refresh subscription status on app launch
                 _ = await SubscriptionService.shared.fetchSubscriptionStatus(forceRefresh: true)
                 isLoggedIn = true
+                await syncPendingAssessmentIfNeeded()
             }
+            await updateAssessmentFlowState()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             // Track app foreground
@@ -148,6 +179,55 @@ struct ContentView: View {
         .onChange(of: authManager.isAuthenticated) { oldValue, newValue in
             // Update isLoggedIn when auth state changes
             isLoggedIn = newValue
+            if newValue {
+                Task {
+                    await syncPendingAssessmentIfNeeded()
+                    await PushNotificationManager.shared.requestAuthorizationAndRegister()
+                    await PushNotificationManager.shared.syncPendingTokenIfNeeded()
+                    await updateAssessmentFlowState()
+                }
+            } else {
+                Task {
+                    await updateAssessmentFlowState()
+                }
+            }
+        }
+    }
+    
+    private func syncPendingAssessmentIfNeeded() async {
+        await assessmentStore.syncIfNeeded()
+    }
+
+    private func handleAssessmentFinish(_ action: InitialAssessmentFinishAction) {
+        switch action {
+        case .showSignUp:
+            showSignUp = true
+            showAssessmentFlow = false
+        case .dismiss:
+            showAssessmentFlow = false
+        }
+    }
+    
+    private func updateAssessmentFlowState() async {
+        if authManager.isAuthenticated || isLoggedIn {
+            let service = SelfAssessmentService()
+            let hasInitial = await service.hasInitialAssessment()
+            await syncPendingAssessmentIfNeeded()
+            
+            if hasInitial {
+                await MainActor.run {
+                    showAssessmentFlow = false
+                }
+                return
+            }
+            
+            await MainActor.run {
+                showAssessmentFlow = !assessmentStore.hasCompletedInitialAssessment
+            }
+        } else {
+            await MainActor.run {
+                showAssessmentFlow = !assessmentStore.hasCompletedInitialAssessment
+            }
         }
     }
 }

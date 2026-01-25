@@ -3,15 +3,22 @@ import SwiftUI
 struct OrderingQuestionView: View {
     let question: Question
     let onComplete: (() -> Void)?
+    let submitHandler: ((Question, [String], Bool, Int) async -> Void)?
     
     @State private var items: [OrderingItem] = []
     @State private var showResult = false
     @State private var isCorrect = false
     @State private var timeStarted = Date()
     
-    init(question: Question, challengeDate: Date? = nil, onComplete: (() -> Void)? = nil) {
+    init(
+        question: Question,
+        challengeDate: Date? = nil,
+        onComplete: (() -> Void)? = nil,
+        submitHandler: ((Question, [String], Bool, Int) async -> Void)? = nil
+    ) {
         self.question = question
         self.onComplete = onComplete
+        self.submitHandler = submitHandler
         // challengeDate parameter kept for compatibility but not used
         _items = State(initialValue: question.content.orderingItems ?? [])
     }
@@ -29,6 +36,25 @@ struct OrderingQuestionView: View {
         return zip(userOrderIds, correctOrderIds).reduce(0) { acc, pair in
             acc + (pair.0 == pair.1 ? 1 : 0)
         }
+    }
+
+    private var contentHeight: CGFloat {
+        let headerPadding: CGFloat = 24
+        let baseRowHeight: CGFloat = 68
+        let extraPerLine: CGFloat = 22
+        let total = items.reduce(0) { acc, item in
+            let extraLines = max(0, (item.text.count - 32) / 32)
+            return acc + baseRowHeight + (CGFloat(extraLines) * extraPerLine)
+        }
+        return total + headerPadding
+    }
+
+    private var maxListHeight: CGFloat {
+        UIScreen.main.bounds.height * 0.7
+    }
+
+    private var listHeight: CGFloat {
+        min(contentHeight, maxListHeight)
     }
     
     var body: some View {
@@ -69,6 +95,7 @@ struct OrderingQuestionView: View {
                 }
                 .onMove(perform: move)
             }
+            .frame(height: listHeight)
             .environment(\.editMode, .constant(.active))
             .scrollContentBackground(.hidden)
             .background(Theme.Colors.surface)
@@ -168,16 +195,19 @@ struct OrderingQuestionView: View {
         
         let timeTaken = Int(Date().timeIntervalSince(timeStarted))
         Task {
-            await QuestionService.shared.submitOrderingAnswer(
-                questionId: question.id,
-                orderIds: userOrderIds,
-                isCorrect: isCorrect,
-                timeTaken: timeTaken
-            )
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) {
-                onComplete?()
+            if let submitHandler = submitHandler {
+                await submitHandler(question, userOrderIds, isCorrect, timeTaken)
+            } else {
+                await QuestionService.shared.submitOrderingAnswer(
+                    questionId: question.id,
+                    orderIds: userOrderIds,
+                    isCorrect: isCorrect,
+                    timeTaken: timeTaken
+                )
             }
+            
+            // Call completion callback immediately for manual navigation
+            onComplete?()
         }
     }
 }

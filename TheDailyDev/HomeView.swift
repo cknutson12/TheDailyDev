@@ -20,6 +20,8 @@ struct HomeView: View {
     @State private var canAccessQuestions = false
     @State private var hasAnsweredBefore = false
     @State private var showingSubscriptionSettings = false
+    @State private var showingMonthlyAssessment = false
+    @State private var isMonthlyAssessmentDue = false
     @StateObject private var tourManager = OnboardingTourManager.shared
     @State private var viewFrames: [String: CGRect] = [:]
     @State private var tourTargetFrame: CGRect? = nil
@@ -196,9 +198,12 @@ struct HomeView: View {
                 // Re-check access status
                 let canAccess = await subscriptionService.canAccessQuestions()
                 let answered = await QuestionService.shared.hasAnsweredToday()
+                let hasAnswered = await questionService.hasAnsweredAnyQuestion()
+                await updateMonthlyAssessmentState()
                 await MainActor.run {
                     self.canAccessQuestions = canAccess
                     self.hasAnsweredToday = answered
+                    self.hasAnsweredBefore = hasAnswered
                 }
             }
         }
@@ -221,9 +226,7 @@ struct HomeView: View {
                         hasAnsweredToday = answered
                         hasAnsweredBefore = hasAnswered
                         
-                        // If they just completed their first question AND don't have active subscription, show paywall
                         if wasFirstQuestion && subscriptionService.currentSubscription?.isActive != true {
-                            // Small delay to ensure smooth transition
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                                 showingSubscriptionBenefits = true
                             }
@@ -293,6 +296,19 @@ struct HomeView: View {
             } else {
                 SubscriptionSettingsView(subscription: .constant(nil), isLoggedIn: $isLoggedIn)
             }
+        }
+        .sheet(isPresented: $showingMonthlyAssessment) {
+            SelfAssessmentRatingView(
+                title: "Monthly Self-Assessment",
+                subtitle: "Rate your skills to track progress over time",
+                skills: InitialAssessmentConfig.skills,
+                primaryButtonTitle: "Save Ratings",
+                onSubmit: { ratings in
+                    let service = SelfAssessmentService()
+                    try? await service.submitAssessment(ratings: ratings, source: .monthly)
+                    await updateMonthlyAssessmentState()
+                }
+            )
         }
     }
     
@@ -377,6 +393,37 @@ struct HomeView: View {
     @ViewBuilder
     private var mainActionButtonSection: some View {
         VStack(spacing: 20) {
+            if isMonthlyAssessmentDue {
+                VStack(spacing: 12) {
+                    Text("Monthly Skill Check-In")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Text("Rate your skills to track progress over time.")
+                        .font(.subheadline)
+                        .foregroundColor(Color.theme.textSecondary)
+                        .multilineTextAlignment(.center)
+                    
+                    Button(action: {
+                        showingMonthlyAssessment = true
+                    }) {
+                        Text("Take Self-Assessment")
+                            .font(.headline)
+                            .foregroundColor(.black)
+                            .padding(.vertical, 12)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                }
+                .padding()
+                .background(Theme.Colors.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.Metrics.cornerRadius)
+                        .stroke(Theme.Colors.border, lineWidth: 1)
+                )
+                .cornerRadius(Theme.Metrics.cornerRadius)
+                .padding(.horizontal)
+            }
             if hasAnsweredToday {
                     VStack(spacing: 16) {
                         Image(systemName: "checkmark.circle.fill")
@@ -435,7 +482,7 @@ struct HomeView: View {
                         HStack {
                             Image(systemName: "play.circle.fill")
                                 .font(.title2)
-                            // Only show "First Free Question" if they have no subscription/trial AND haven't answered before
+                            // Free Friday gets special messaging for non-subscribers
                             Text(getQuestionButtonText())
                                 .font(.headline)
                         }
@@ -449,36 +496,56 @@ struct HomeView: View {
                     .tourHighlight(isHighlighted: tourManager.shouldHighlight(identifier: "DailyQuestionButton"), verticalPadding: 0) // Border matches full button
                     .trackFrame(identifier: "DailyQuestionButton")
                     
-                    // Show Friday or first question message if applicable
                     if !hasAnsweredBefore && subscriptionService.currentSubscription?.isActive != true {
                         Text("Your first question is free - no subscription needed!")
                             .font(.caption)
                             .foregroundColor(Theme.Colors.textSecondary)
                             .multilineTextAlignment(.center)
-                    } else if subscriptionService.currentSubscription?.isActive != true {
-                        // Must be Friday (non-subscriber with previous answers)
+                    } else if subscriptionService.currentSubscription?.isActive != true && isFreeFriday() {
                         Text("🎉 Free Friday Question!")
                             .font(.caption)
                             .foregroundColor(Theme.Colors.accentGreen)
                     }
                     // Don't show trial status on home screen - keep it clean
                 } else {
-                    // User needs subscription - show message to answer first question
+                    // User needs subscription - show upgrade message
                     VStack(spacing: 16) {
-                        Image(systemName: "play.circle.fill")
-                            .font(.system(size: 50))
-                            .foregroundColor(Color.theme.accentGreen)
-                        
-                        Text("Answer Your First Question")
+                        Text(hasAnsweredBefore ? "Subscribe for More Questions" : "Answer Your First Question")
                             .font(.title2)
                             .bold()
                             .foregroundColor(.white)
                         
-                        Text("Your first question is free! Answer it to unlock daily practice and see subscription options.")
+                        Text(hasAnsweredBefore
+                             ? "Subscribe to get more questions or check back on Friday."
+                             : "Your first question is free! Answer it to unlock daily practice and see subscription options.")
                             .font(.body)
                             .foregroundColor(Color.theme.textSecondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
+                        
+                        if !hasAnsweredBefore {
+                            Button(action: {
+                                showingQuestion = true
+                            }) {
+                                Text("Answer Your First Free Question")
+                                    .font(.headline)
+                                    .foregroundColor(.black)
+                                    .padding(.vertical, 12)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(PrimaryButtonStyle())
+                        } else {
+                            Button(action: {
+                                showingSubscriptionBenefits = true
+                            }) {
+                                Text("Subscribe")
+                                    .font(.headline)
+                                    .foregroundColor(.black)
+                                    .padding(.vertical, 12)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(PrimaryButtonStyle())
+                        }
                     }
                     .padding()
                     .background(Theme.Colors.surface)
@@ -549,6 +616,8 @@ struct HomeView: View {
         // Check if answered today
         await checkIfAnsweredToday()
         
+        await updateMonthlyAssessmentState()
+        
         // Mark as loaded
         await MainActor.run {
             self.isLoadingInitialData = false
@@ -566,13 +635,41 @@ struct HomeView: View {
     // MARK: - Get Question Button Text
     
     private func getQuestionButtonText() -> String {
-        // If user has active subscription or trial, always show standard text
         if subscriptionService.currentSubscription?.isActive == true {
             return "Answer Today's Question"
         }
         
-        // Otherwise, show "first free question" only if they've never answered
-        return hasAnsweredBefore ? "Answer Today's Question" : "Answer Your First Free Question"
+        if !hasAnsweredBefore {
+            return "Answer Your First Free Question"
+        }
+        
+        if isFreeFriday() {
+            return "Answer Friday's Free Question"
+        }
+        
+        return "Answer Today's Question"
+    }
+
+    private func isFreeFriday() -> Bool {
+        let weekday = Calendar.current.component(.weekday, from: Date())
+        return weekday == 6
+    }
+    
+    private func updateMonthlyAssessmentState() async {
+        guard subscriptionService.currentSubscription?.isActive == true else {
+            await MainActor.run {
+                isMonthlyAssessmentDue = false
+            }
+            return
+        }
+        
+        let service = SelfAssessmentService()
+        let records = await service.fetchAssessments()
+        let isDue = service.isAssessmentDue(records: records)
+        
+        await MainActor.run {
+            isMonthlyAssessmentDue = isDue
+        }
     }
 }
 

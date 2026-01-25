@@ -258,6 +258,7 @@ class QuestionService: ObservableObject {
                 .execute()
                 
             DebugLogger.log("✅ Progress saved successfully")
+            cachedHasAnsweredAny = true
             
             // Track question answered
             AnalyticsService.shared.track("question_answered", properties: [
@@ -347,6 +348,7 @@ class QuestionService: ObservableObject {
                 .execute()
                 
             DebugLogger.log("✅ Matching answer saved successfully")
+            cachedHasAnsweredAny = true
             
             // Track question answered (same as submitAnswer)
             AnalyticsService.shared.track("question_answered", properties: [
@@ -430,6 +432,7 @@ class QuestionService: ObservableObject {
                 .execute()
             
             DebugLogger.log("✅ Ordering answer saved successfully")
+            cachedHasAnsweredAny = true
             
             // Track question answered (same as submitAnswer)
             AnalyticsService.shared.track("question_answered", properties: [

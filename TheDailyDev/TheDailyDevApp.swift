@@ -8,9 +8,11 @@
 import SwiftUI
 import RevenueCat
 import PostHog
+import UserNotifications
 
 @main
 struct TheDailyDevApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var subscriptionService = SubscriptionService.shared
     @StateObject private var passwordResetManager = PasswordResetManager.shared
     @StateObject private var emailVerificationManager = EmailVerificationManager.shared
@@ -312,6 +314,92 @@ struct TheDailyDevApp: App {
         default:
             DebugLogger.log("⚠️ Unknown host: \(host)")
             break
+        }
+    }
+}
+
+// MARK: - App Delegate (Push Notifications)
+
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        PushNotificationManager.shared.handleDeviceToken(deviceToken)
+    }
+    
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        PushNotificationManager.shared.handleRegistrationError(error)
+    }
+}
+
+// MARK: - Push Notification Manager
+
+@MainActor
+final class PushNotificationManager: NSObject, ObservableObject {
+    static let shared = PushNotificationManager()
+    
+    private var pendingToken: String?
+    
+    private override init() {}
+    
+    func requestAuthorizationAndRegister() async {
+        let center = UNUserNotificationCenter.current()
+        let granted = await withCheckedContinuation { continuation in
+            center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+                continuation.resume(returning: granted)
+            }
+        }
+        
+        guard granted else {
+            DebugLogger.log("🔕 Push permissions denied")
+            return
+        }
+        
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+    
+    func handleDeviceToken(_ deviceToken: Data) {
+        let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        DebugLogger.log("📲 APNs token received (length: \(token.count))")
+        Task {
+            await saveToken(token)
+        }
+    }
+    
+    func handleRegistrationError(_ error: Error) {
+        DebugLogger.error("❌ Failed to register for push notifications: \(error)")
+    }
+    
+    func syncPendingTokenIfNeeded() async {
+        guard let pendingToken = pendingToken else { return }
+        await saveToken(pendingToken)
+    }
+    
+    private func saveToken(_ token: String) async {
+        do {
+            let session = try await SupabaseManager.shared.client.auth.session
+            let userId = session.user.id.uuidString
+            
+            let record: [String: String] = [
+                "user_id": userId,
+                "token": token,
+                "platform": "ios"
+            ]
+            
+            _ = try await SupabaseManager.shared.client
+                .from("user_push_tokens")
+                .upsert(record, onConflict: "user_id,token")
+                .execute()
+            
+            pendingToken = nil
+            DebugLogger.log("✅ Push token saved")
+        } catch {
+            pendingToken = token
+            DebugLogger.log("⚠️ Push token queued until auth: \(error)")
         }
     }
 }

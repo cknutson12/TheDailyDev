@@ -48,6 +48,9 @@
 		A1N2A3L42ED99999108AFC8E /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1N2A3L52ED99999108AFC8E /* AnalyticsService.swift */; };
 		AA11BB222EC0000000AFC8E /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB212EC0000000AFC8E /* Theme.swift */; };
 		B1B2B3B42ED22345008AFC8E /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1B2B3B32ED22345008AFC8E /* AuthManager.swift */; };
+		B2A1C3D42F3A0001008AFC8E /* InitialAssessmentFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A1C3D72F3A0001008AFC8E /* InitialAssessmentFlowView.swift */; };
+		B2A1C3D52F3A0001008AFC8E /* SelfAssessmentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A1C3D82F3A0001008AFC8E /* SelfAssessmentService.swift */; };
+		B2A1C3D62F3A0001008AFC8E /* SelfAssessmentChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A1C3D92F3A0001008AFC8E /* SelfAssessmentChartView.swift */; };
 		D1E2B3U42ED99999008AFC8E /* DebugLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2B3U52ED99999008AFC8E /* DebugLogger.swift */; };
 		DED1D212C9B31179FBAC8E87 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DED1D212C9B31179FBAC8E88 /* PrivacyInfo.xcprivacy */; };
 		E1F2E3E42ED33345008AFC8E /* EmailVerificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F2E3E32ED33345008AFC8E /* EmailVerificationView.swift */; };
@@ -131,6 +134,9 @@
 		A1N2A3L52ED99999108AFC8E /* AnalyticsService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AnalyticsService.swift; sourceTree = "<group>"; };
 		AA11BB212EC0000000AFC8E /* Theme.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		B1B2B3B32ED22345008AFC8E /* AuthManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
+		B2A1C3D72F3A0001008AFC8E /* InitialAssessmentFlowView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InitialAssessmentFlowView.swift; sourceTree = "<group>"; };
+		B2A1C3D82F3A0001008AFC8E /* SelfAssessmentService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SelfAssessmentService.swift; sourceTree = "<group>"; };
+		B2A1C3D92F3A0001008AFC8E /* SelfAssessmentChartView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SelfAssessmentChartView.swift; sourceTree = "<group>"; };
 		D1E2B3U52ED99999008AFC8E /* DebugLogger.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugLogger.swift; sourceTree = "<group>"; };
 		DED1D212C9B31179FBAC8E88 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		E1F2E3E32ED33345008AFC8E /* EmailVerificationView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = EmailVerificationView.swift; sourceTree = "<group>"; };
@@ -210,6 +216,7 @@
 				DED1D212C9B31179FBAC8E88 /* PrivacyInfo.xcprivacy */,
 				7DCCAE002E9F30B2003A8156 /* TheDailyDevApp.swift */,
 				7DCCAE022E9F30B2003A8156 /* ContentView.swift */,
+				B2A1C3D72F3A0001008AFC8E /* InitialAssessmentFlowView.swift */,
 				7D9582682EA86A33008AFC8E /* AdaptiveText.swift */,
 				AA11BB212EC0000000AFC8E /* Theme.swift */,
 				7D95821C2EA32EAF008AFC8E /* SignUpView.swift */,
@@ -244,7 +251,9 @@
 				V1I2E3W52ED99999508AFC8E /* ViewFramePreferenceKey.swift */,
 				T1O2U3R92ED99999608AFC8E /* TourHighlightModifier.swift */,
 				7D9582712EAB0574008AFC8E /* CategoryPerformanceView.swift */,
+				B2A1C3D92F3A0001008AFC8E /* SelfAssessmentChartView.swift */,
 				7DCCAE302EA08B08003A8156 /* ProfileView.swift */,
+				B2A1C3D82F3A0001008AFC8E /* SelfAssessmentService.swift */,
 				7DCCAE352EA1D08A003A8156 /* SupabaseManager.swift */,
 				B1B2B3B32ED22345008AFC8E /* AuthManager.swift */,
 				E1F2E3E32ED33345008AFC8E /* EmailVerificationView.swift */,
@@ -457,6 +466,7 @@
 				7D95825D2EA45859008AFC8E /* QuestionService.swift in Sources */,
 				7D95826B2EA86A33008AFC8E /* QuestionImageView.swift in Sources */,
 				7DCCAE032E9F30B2003A8156 /* ContentView.swift in Sources */,
+				B2A1C3D42F3A0001008AFC8E /* InitialAssessmentFlowView.swift in Sources */,
 				7D9582712EAE8037008AFC8E /* SubscriptionBenefitsView.swift in Sources */,
 				7DCCAE012E9F30B2003A8156 /* TheDailyDevApp.swift in Sources */,
 				7D95826B2EAB0574008AFC8E /* ImageHelper.swift in Sources */,
@@ -471,7 +481,9 @@
 				V1I2E3W42ED99999508AFC8E /* ViewFramePreferenceKey.swift in Sources */,
 				T1O2U3R82ED99999608AFC8E /* TourHighlightModifier.swift in Sources */,
 				7D9582702EAB0574008AFC8E /* CategoryPerformanceView.swift in Sources */,
+				B2A1C3D62F3A0001008AFC8E /* SelfAssessmentChartView.swift in Sources */,
 				7D9582732EAE8037008AFC8E /* SubscriptionService.swift in Sources */,
+				B2A1C3D52F3A0001008AFC8E /* SelfAssessmentService.swift in Sources */,
 				7D9582762EAE8037008AFC8E /* RevenueCatSubscriptionProvider.swift in Sources */,
 				7D9582782EAE8037008AFC8E /* RevenueCatPaywallView.swift in Sources */,
 				62C471142EAE8888008AFC8E /* FeedbackService.swift in Sources */,
@@ -648,6 +660,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TheDailyDev/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "The Daily Dev";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -681,6 +695,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TheDailyDev/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "The Daily Dev";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

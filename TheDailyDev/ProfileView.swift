@@ -18,6 +18,10 @@ struct ProfileView: View {
     @State private var userName: String = ""
     @State private var categoryPerformances: [CategoryPerformance] = []
     @State private var isLoadingCategories = false
+    @State private var selfAssessments: [SelfAssessmentRecord] = []
+    @State private var isLoadingSelfAssessments = false
+    @State private var isSelfAssessmentDue = false
+    @State private var showingSelfAssessment = false
     @State private var showingSubscriptionBenefits = false
     @State private var isLoadingSubscription = true
     @StateObject private var tourManager = OnboardingTourManager.shared
@@ -104,6 +108,8 @@ struct ProfileView: View {
                                     .trackFrame(identifier: "CategoryPerformanceView")
                                     .padding(.horizontal)
                             }
+                            
+                            selfAssessmentSection
                         } else {
                             // Show analytics views (blank for non-subscribers) or upgrade prompt
                             if tourManager.isTourActive {
@@ -200,6 +206,19 @@ struct ProfileView: View {
         .sheet(isPresented: $showingSubscriptionBenefits) {
             SubscriptionBenefitsView()
         }
+        .sheet(isPresented: $showingSelfAssessment) {
+            SelfAssessmentRatingView(
+                title: "Monthly Self-Assessment",
+                subtitle: "Rate your skills to track progress over time",
+                skills: InitialAssessmentConfig.skills,
+                primaryButtonTitle: "Save Ratings",
+                onSubmit: { ratings in
+                    let service = SelfAssessmentService()
+                    try? await service.submitAssessment(ratings: ratings, source: .monthly)
+                    await loadSelfAssessments()
+                }
+            )
+        }
         .onAppear {
             Task {
                 // Force refresh subscription status when profile appears
@@ -243,6 +262,19 @@ struct ProfileView: View {
                 self.isLoadingCategories = false
             }
         }
+        
+        await loadSelfAssessments()
+    }
+
+    @ViewBuilder
+    private var selfAssessmentSection: some View {
+        SelfAssessmentChartView(
+            assessments: selfAssessments,
+            isLoading: isLoadingSelfAssessments,
+            isDue: false,
+            onTakeAssessment: { showingSelfAssessment = true }
+        )
+        .padding(.horizontal)
     }
     
     // MARK: - Load Progress History
@@ -271,6 +303,23 @@ struct ProfileView: View {
         await MainActor.run {
             self.categoryPerformances = performances
             self.isLoadingCategories = false
+        }
+    }
+
+    // MARK: - Load Self Assessments
+    private func loadSelfAssessments() async {
+        await MainActor.run {
+            self.isLoadingSelfAssessments = true
+        }
+        
+        let service = SelfAssessmentService()
+        let records = await service.fetchAssessments()
+        let due = service.isAssessmentDue(records: records)
+        
+        await MainActor.run {
+            self.selfAssessments = records
+            self.isSelfAssessmentDue = due
+            self.isLoadingSelfAssessments = false
         }
     }
     

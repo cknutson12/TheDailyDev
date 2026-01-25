@@ -122,6 +122,7 @@ class SubscriptionService: ObservableObject {
         do {
             let session = try await SupabaseManager.shared.client.auth.session
             let userId = session.user.id.uuidString
+            let timeZoneId = TimeZone.current.identifier
             
             // Extract name from parameters (passed in) or user metadata (from auth.users table)
             var finalFirstName: String? = firstName
@@ -164,6 +165,7 @@ class SubscriptionService: ObservableObject {
                 if let lastName = finalLastName, !lastName.isEmpty {
                     insertData["last_name"] = lastName
                 }
+                insertData["timezone"] = timeZoneId
                 
                 _ = try await SupabaseManager.shared.client
                     .from("user_subscriptions")
@@ -176,7 +178,8 @@ class SubscriptionService: ObservableObject {
                 // DO NOT touch subscription status or RevenueCat-related fields!
                 if let existingRecord = existing.first {
                     let needsUpdate = (existingRecord.firstName == nil || existingRecord.firstName?.isEmpty == true) && finalFirstName != nil ||
-                                      (existingRecord.lastName == nil || existingRecord.lastName?.isEmpty == true) && finalLastName != nil
+                                      (existingRecord.lastName == nil || existingRecord.lastName?.isEmpty == true) && finalLastName != nil ||
+                                      (existingRecord.timezone == nil || existingRecord.timezone?.isEmpty == true || existingRecord.timezone != timeZoneId)
                     
                     if needsUpdate {
                         var updateData: [String: String?] = [:]
@@ -185,6 +188,9 @@ class SubscriptionService: ObservableObject {
                         }
                         if (existingRecord.lastName == nil || existingRecord.lastName?.isEmpty == true) && finalLastName != nil {
                             updateData["last_name"] = finalLastName
+                        }
+                        if existingRecord.timezone == nil || existingRecord.timezone?.isEmpty == true || existingRecord.timezone != timeZoneId {
+                            updateData["timezone"] = timeZoneId
                         }
                         
                         if !updateData.isEmpty {
@@ -472,13 +478,13 @@ class SubscriptionService: ObservableObject {
         if currentSubscription?.isActive == true {
             return true
         }
-        
+
         // 2. Check if they've never answered (first free question)
         let hasAnswered = await QuestionService.shared.hasAnsweredAnyQuestion()
         if !hasAnswered {
             return true
         }
-        
+
         // 3. Check if it's Friday
         let calendar = Calendar.current
         let weekday = calendar.component(.weekday, from: Date())
