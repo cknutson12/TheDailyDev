@@ -419,12 +419,15 @@ struct SignUpView: View {
             await AuthManager.shared.setRevenueCatUserID()
             // Ensure user_subscriptions record exists
             await SubscriptionService.shared.ensureUserSubscriptionRecord()
-            
-            // Check if this is a new user (first time signing in)
-            // For OAuth, we'll show onboarding for all sign-ins (can be optimized later)
-            await MainActor.run {
-                showingOnboarding = true
+
+            let shouldShowOnboarding = OnboardingTourManager.shared.shouldShowTour()
+            DebugLogger.log("🧭 OAuth sign-in (Google) - shouldShowTour: \(shouldShowOnboarding)")
+            if shouldShowOnboarding {
+                await MainActor.run {
+                    EmailVerificationManager.shared.showOnboarding()
+                }
             }
+            
         } catch {
             // Track sign-up failure
             AnalyticsService.shared.track("sign_up_failed", properties: [
@@ -470,11 +473,15 @@ struct SignUpView: View {
             await AuthManager.shared.setRevenueCatUserID()
             // Ensure user_subscriptions record exists
             await SubscriptionService.shared.ensureUserSubscriptionRecord()
-            
-            // Show onboarding for all OAuth sign-ups (tour will start after onboarding)
-            await MainActor.run {
-                showingOnboarding = true
+
+            let shouldShowOnboarding = OnboardingTourManager.shared.shouldShowTour()
+            DebugLogger.log("🧭 OAuth sign-in (GitHub) - shouldShowTour: \(shouldShowOnboarding)")
+            if shouldShowOnboarding {
+                await MainActor.run {
+                    EmailVerificationManager.shared.showOnboarding()
+                }
             }
+            
         } catch {
             // Track sign-up failure
             AnalyticsService.shared.track("sign_up_failed", properties: [

@@ -28,6 +28,8 @@ struct TourOverlayView: View {
                 let _ = DebugLogger.log("   Showing step: \(step.id) - \(step.title)")
                 
                 // Only show tooltip - no black overlay, highlighting is done directly on elements
+                let isTopTooltip = step.targetViewIdentifier == "SelfAssessmentChart"
+                
                 ZStack {
                     // Transparent background that allows touches to pass through except on tooltip
                     Color.clear
@@ -35,7 +37,9 @@ struct TourOverlayView: View {
                         .allowsHitTesting(false) // Allow touches to pass through to views below
                     
                     VStack {
-                        Spacer()
+                        if !isTopTooltip {
+                            Spacer()
+                        }
                         
                         TooltipView(
                             step: step,
@@ -50,9 +54,15 @@ struct TourOverlayView: View {
                             }
                         )
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 40)
+                        .padding(.bottom, isTopTooltip ? 12 : 40)
+                        .padding(.top, isTopTooltip ? 40 : 0)
                         .allowsHitTesting(true) // Allow touches on tooltip buttons
+                        
+                        if isTopTooltip {
+                            Spacer()
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .transition(.opacity)
             } else {

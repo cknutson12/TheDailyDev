@@ -111,7 +111,11 @@ class AuthManager: ObservableObject {
     func handleOAuthCallback(url: URL) async {
         do {
             // Extract the session from the callback URL to verify authentication
-            _ = try await SupabaseManager.shared.client.auth.session(from: url)
+            let session = try await SupabaseManager.shared.client.auth.session(from: url)
+            let userId = session.user.id.uuidString
+            
+            let shouldShowOnboarding = OnboardingTourManager.shared.shouldShowTour()
+            DebugLogger.log("🧭 OAuth onboarding check - shouldShowTour: \(shouldShowOnboarding)")
             
             // Set RevenueCat user ID and update database
             // This will call logIn() and update the database
@@ -120,6 +124,11 @@ class AuthManager: ObservableObject {
             await MainActor.run {
                 isAuthenticated = true
                 isCheckingAuth = false
+                
+                if shouldShowOnboarding {
+                    DebugLogger.log("🆕 OAuth sign-in - showing onboarding")
+                    EmailVerificationManager.shared.showOnboarding()
+                }
             }
         } catch {
             DebugLogger.error("Failed to establish OAuth session: \(error)")
@@ -177,5 +186,6 @@ class AuthManager: ObservableObject {
             DebugLogger.error("Failed to set RevenueCat user ID: \(error)")
         }
     }
+
 }
 

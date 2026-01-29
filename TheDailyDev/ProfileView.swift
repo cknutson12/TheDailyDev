@@ -128,7 +128,12 @@ struct ProfileView: View {
                                     .accessibilityIdentifier("CategoryPerformanceView")
                                     .trackFrame(identifier: "CategoryPerformanceView")
                                     .padding(.horizontal)
+                                
+                                selfAssessmentSection
                             } else {
+                                // Show progress chart even for non-subscribers
+                                selfAssessmentSection
+                                
                                 // Show upgrade prompt for non-subscribers (when not in tour)
                                 VStack(spacing: 16) {
                                     Image(systemName: "crown.fill")
@@ -274,6 +279,8 @@ struct ProfileView: View {
             isDue: false,
             onTakeAssessment: { showingSelfAssessment = true }
         )
+        .tourHighlight(isHighlighted: tourManager.shouldHighlight(identifier: "SelfAssessmentChart"))
+        .accessibilityIdentifier("SelfAssessmentChart")
         .padding(.horizontal)
     }
     
@@ -313,7 +320,28 @@ struct ProfileView: View {
         }
         
         let service = SelfAssessmentService()
-        let records = await service.fetchAssessments()
+        var records = await service.fetchAssessments()
+        
+        if records.isEmpty, let pending = InitialAssessmentStore.shared.assessment, pending.completedAt != nil {
+            let ratings = Dictionary(uniqueKeysWithValues: pending.ratings.map { ($0.skillKey, $0.rating) })
+            if !ratings.isEmpty {
+                do {
+                    let session = try await SupabaseManager.shared.client.auth.session
+                    let fallback = SelfAssessmentRecord(
+                        id: pending.id,
+                        userId: session.user.id,
+                        assessmentDate: pending.completedAt ?? DateUtils.iso8601WithFractional.string(from: Date()),
+                        ratings: ratings,
+                        source: pending.source.rawValue,
+                        createdAt: pending.completedAt
+                    )
+                    records = [fallback]
+                } catch {
+                    DebugLogger.error("Failed to build fallback self assessment: \(error)")
+                }
+            }
+        }
+        
         let due = service.isAssessmentDue(records: records)
         
         await MainActor.run {

@@ -30,8 +30,12 @@ struct Config {
         guard let path = Bundle.main.path(forResource: "Config-Secrets", ofType: "plist"),
               let plist = NSDictionary(contentsOfFile: path),
               let key = plist["REVENUECAT_API_KEY"] as? String else {
+            #if DEBUG
             // Fallback to test key if not in plist (for development)
             return "test_vWiKnNMjHYYzrbfAPbKvqqsYhgE"
+            #else
+            fatalError("REVENUECAT_API_KEY not found in Config-Secrets.plist for release build")
+            #endif
         }
         return key
     }

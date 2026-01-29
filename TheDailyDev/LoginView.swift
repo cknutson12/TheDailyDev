@@ -252,7 +252,14 @@ struct LoginView: View {
             await AuthManager.shared.setRevenueCatUserID()
             // Ensure user_subscriptions record exists
             await SubscriptionService.shared.ensureUserSubscriptionRecord()
+            
+            let shouldShowOnboarding = OnboardingTourManager.shared.shouldShowTour()
+            DebugLogger.log("🧭 OAuth sign-in (Google/login) - shouldShowTour: \(shouldShowOnboarding)")
+            
             await MainActor.run {
+                if shouldShowOnboarding {
+                    EmailVerificationManager.shared.showOnboarding()
+                }
                 isLoggedIn = true
             }
         } catch {
@@ -283,7 +290,14 @@ struct LoginView: View {
             await AuthManager.shared.setRevenueCatUserID()
             // Ensure user_subscriptions record exists
             await SubscriptionService.shared.ensureUserSubscriptionRecord()
+            
+            let shouldShowOnboarding = OnboardingTourManager.shared.shouldShowTour()
+            DebugLogger.log("🧭 OAuth sign-in (GitHub/login) - shouldShowTour: \(shouldShowOnboarding)")
+            
             await MainActor.run {
+                if shouldShowOnboarding {
+                    EmailVerificationManager.shared.showOnboarding()
+                }
                 isLoggedIn = true
             }
         } catch {

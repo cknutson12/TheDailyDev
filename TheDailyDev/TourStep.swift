@@ -69,6 +69,16 @@ extension TourStep {
             targetViewIdentifier: "QuestionHistoryGrid",
             arrowDirection: .top,
             requiresNavigation: true
+        ),
+        
+        // Step 5: Progress Over Time
+        TourStep(
+            id: "progress_over_time",
+            title: "Progress Over Time",
+            message: "Track how your self-ratings trend across skills. We'll check in monthly to see how you're feeling so your growth shows up here.",
+            targetViewIdentifier: "SelfAssessmentChart",
+            arrowDirection: .top,
+            requiresNavigation: true
         )
     ]
 }

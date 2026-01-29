@@ -59,6 +59,38 @@ struct SelfAssessmentChartView: View {
         }.sorted { $0.date < $1.date }
     }
     
+    private var placeholderAssessment: (id: UUID, date: Date) {
+        (UUID(), Date())
+    }
+    
+    private var displaySeries: [SkillSeries] {
+        if !skillSeries.isEmpty {
+            return skillSeries
+        }
+        
+        let placeholder = placeholderAssessment
+        return skillOrder.map { entry in
+            let point = SelfAssessmentTrendPoint(
+                assessmentId: placeholder.id,
+                date: placeholder.date,
+                rating: 3.0
+            )
+            return SkillSeries(
+                key: entry.key,
+                label: entry.label,
+                color: entry.color.opacity(0.5),
+                points: [point]
+            )
+        }
+    }
+    
+    private var displayAssessments: [(id: UUID, date: Date)] {
+        if !orderedAssessments.isEmpty {
+            return orderedAssessments
+        }
+        return [placeholderAssessment]
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Self-Ratings")
@@ -69,14 +101,20 @@ struct SelfAssessmentChartView: View {
             if isLoading {
                 ProgressView("Loading self-assessments...")
                     .frame(maxWidth: .infinity, minHeight: 120)
-            } else if skillSeries.isEmpty {
-                Text("Complete your first self-assessment to see your progress here.")
-                    .font(.subheadline)
-                    .foregroundColor(Color.theme.textSecondary)
-                    .multilineTextAlignment(.leading)
             } else {
-                MultiLineChartView(series: skillSeries, originDate: originDate, orderedAssessments: orderedAssessments)
-                    .frame(height: 200)
+                MultiLineChartView(
+                    series: displaySeries,
+                    originDate: originDate ?? placeholderAssessment.date,
+                    orderedAssessments: displayAssessments
+                )
+                .frame(height: 200)
+                
+                if skillSeries.isEmpty {
+                    Text("Complete your first self-assessment to see your real data here.")
+                        .font(.subheadline)
+                        .foregroundColor(Color.theme.textSecondary)
+                        .multilineTextAlignment(.leading)
+                }
             }
             
             if isDue {
@@ -88,9 +126,9 @@ struct SelfAssessmentChartView: View {
                 .padding(.top, 4)
             }
             
-            if !skillSeries.isEmpty {
-                let leftColumn = Array(skillSeries.prefix(3))
-                let rightColumn = Array(skillSeries.dropFirst(3))
+            if !displaySeries.isEmpty {
+                let leftColumn = Array(displaySeries.prefix(3))
+                let rightColumn = Array(displaySeries.dropFirst(3))
                 
                 HStack(alignment: .top, spacing: 24) {
                     VStack(alignment: .leading, spacing: 6) {
